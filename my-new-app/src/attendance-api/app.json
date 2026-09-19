@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "4aa588f4-3852-4dfe-afd2-237c64c4e680"
+      }
+    },
+    "android": {
+      "package": "com.benny24.demo"
+    }
+  }
+}

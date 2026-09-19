@@ -102,6 +102,7 @@ export default function Login(){
     }
 
     try {
+      console.log("Getting: ",`${API_BASE_URL}/login`)
       const loginResponse = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
         headers: {

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 export default function StudentRegisterForm() {
@@ -26,7 +26,8 @@ export default function StudentRegisterForm() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/demo`, {
+      console.log("Attempting to fetch:", `${API_BASE_URL}/demo`);
+      const response = await fetch(`${API_BASE_URL}/demo`, {
         method: 'POST',
         headers: { 
           Authorization: `Bearer ${API_KEY}`,

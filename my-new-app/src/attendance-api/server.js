@@ -264,6 +264,7 @@ const cors = require("cors");
 const crypto = require("crypto"); // FIX 1: was missing, needed for randomBytes()
 const { Pool } = require("pg");
 const bcrypt = require("bcryptjs");
+const {v4 : uuidv4} = require('uuid');
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -501,10 +502,10 @@ app.get("/api/student-by-email/:email", requireApiKey,async (req,res) => {
 
 //Register Direct to API not with manual SQL entry
 
-app.get("/api/demo", requireApiKey, async (req,res) =>{
-  const {data_id, data_name, data_student_id} = req.body || {};
+app.post("/api/demo", requireApiKey, async (req,res) =>{
+  const {name , sis_id , overall_attendance} = req.body || {};
 
-  if(!data_id || !data_name || !data_student_id){
+  if(!name || !sis_id){
     return res.status(400).json({error: "All data needed for the SQL"});
   }
 
@@ -514,13 +515,13 @@ app.get("/api/demo", requireApiKey, async (req,res) =>{
       if(checkUser.rows.length > 0 ){
         return res.status(409).json({error: "Student id existed"});
       }
-
+      const newId = uuidv4();
       const insertQuery = `
-      INSERT INTO students (name, sis_id, overall_attendance)
-      VALUES ($1, $2, $3)
+      INSERT INTO students (id, name, sis_id, overall_attendance)
+      VALUES ($1, $2, $3, $4)
       RETURNING id, name, sis_id, overall_attendance;`;
 
-      const result = await pool.query(insertQuery,[data_id,data_name,data_student_id]);
+      const result = await pool.query(insertQuery,[newId,name,sis_id,overall_attendance || 0]);
       res.status(201).json({ 
       message: "Student saved to database successfully!",
       student: result.rows[0]
