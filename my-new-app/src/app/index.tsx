@@ -16,8 +16,8 @@ import { useAuth } from '../context/Auth';
 
 WebBrowser.maybeCompleteAuthSession();
 
-const CLIENT_ID = '6b15c6be-f7cc-4864-bedd-2910d798fa09';
-const TENANT_ID = '3f639a9b-27c8-4403-82b1-ebfb88052d15';
+const CLIENT_ID = process.env.EXPO_PUBLIC_MS_CLIENT_ID;
+const TENANT_ID = 'organisation';
 interface MicrosoftIdTokenClaims {
   name?: string,
   preferred_username?: string,
