@@ -99,6 +99,36 @@
 
 // services/qwickly.ts
 
+// const N8N_WEBHOOK_URL = process.env.EXPO_PUBLIC_N8N_WEBHOOK_URL;
+
+// export async function fetchStudentAttendanceViaN8N(studentID: string) {
+//   if (!N8N_WEBHOOK_URL) {
+//     throw new Error("EXPO_PUBLIC_N8N_WEBHOOK_URL is not configured.");
+//   }
+
+//   try {
+//     // Calls n8n, passing the studentID as a query parameter
+//     const response = await fetch(`${N8N_WEBHOOK_URL}?studentID=${encodeURIComponent(studentID)}`, {
+//       method: 'GET',
+//       headers: {
+//         'Content-Type': 'application/json',
+//       },
+//     });
+
+//     if (!response.ok) {
+//       throw new Error(`Server returned status ${response.status}`);
+//     }
+
+//     const data = await response.json();
+//     return data;
+//   } catch (error) {
+//     console.error("n8n Proxy Fetch Error:", error);
+//     return null;
+//   }
+// }
+
+// services/qwickly.ts
+
 const N8N_WEBHOOK_URL = process.env.EXPO_PUBLIC_N8N_WEBHOOK_URL;
 
 export async function fetchStudentAttendanceViaN8N(studentID: string) {
@@ -107,7 +137,6 @@ export async function fetchStudentAttendanceViaN8N(studentID: string) {
   }
 
   try {
-    // Calls n8n, passing the studentID as a query parameter
     const response = await fetch(`${N8N_WEBHOOK_URL}?studentID=${encodeURIComponent(studentID)}`, {
       method: 'GET',
       headers: {
@@ -115,12 +144,22 @@ export async function fetchStudentAttendanceViaN8N(studentID: string) {
       },
     });
 
+    // 1. Get the raw text of the response first
+    const rawText = await response.text();
+
     if (!response.ok) {
+      console.error(`Server returned status ${response.status}. Raw response:`, rawText);
       throw new Error(`Server returned status ${response.status}`);
     }
 
-    const data = await response.json();
-    return data;
+    // 2. Try to parse it as JSON, but fail gracefully if it's not
+    try {
+      return JSON.parse(rawText);
+    } catch (parseError) {
+      console.error("Failed to parse response as JSON. Raw text was:", rawText);
+      return null; // Or handle the error however you prefer
+    }
+
   } catch (error) {
     console.error("n8n Proxy Fetch Error:", error);
     return null;
