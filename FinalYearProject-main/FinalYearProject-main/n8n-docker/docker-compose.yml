@@ -10,7 +10,6 @@ services:
     environment:
       - GENERIC_TIMEZONE=Asia/Kuala_Lumpur # Replace with your local timezone
       - TZ=Asia/Kuala_Lumpur
-      - N8N_WEBHOOK_URL=http://host.docker.internal:5678/
     volumes:
       - n8n_data:/home/node/.n8n
 

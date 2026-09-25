@@ -1,0 +1,20 @@
+{
+  "name": "attendance-api",
+  "version": "1.0.0",
+  "description": "Demo API layer over PostgreSQL, standing in for the Qwickly API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
+    "expo-auth-session": "~57.0.12",
+    "expo-web-browser": "~57.0.3",
+    "express": "^4.22.3",
+    "jwt-decode": "^4.0.0",
+    "pg": "^8.23.0",
+    "uuid": "^14.0.2"
+  }
+}
