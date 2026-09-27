@@ -1,5 +1,5 @@
 import { refreshAsync, TokenResponse } from 'expo-auth-session';
-import { AppState } from 'react-native';
+import { jwtDecode } from 'jwt-decode';
 import {
   createContext,
   ReactNode,
@@ -10,218 +10,423 @@ import {
   useState,
 } from 'react';
 
-import { apiRequest, ApiError, withTimeout } from '../services/api';
-import { authConfig, scopes, tokenEndpoint } from '../services/config';
-// import { readSession, StoredSession, writeSession } from '../services/';
+import {
+  authConfig,
+  scopes,
+  tokenEndpoint,
+} from '../services/config';
+
+/**
+ * Basic information returned from Microsoft Entra.
+ *
+ * For the proof-of-concept we are NOT calling /auth/me.
+ */
+interface MicrosoftIdTokenClaims {
+  name?: string;
+  preferred_username?: string;
+  email?: string;
+  upn?: string;
+  oid?: string;
+  sub?: string;
+  exp?: number;
+}
 
 export interface AuthUser {
   name: string;
   email: string;
+
+  /**
+   * These are kept for compatibility with the rest
+   * of your existing application.
+   *
+   * They will eventually come from your student
+   * profile API / Qwickly integration.
+   */
   student: string | null;
   sisId: string | null;
+
   role: 'student' | 'lecturer';
   method: 'microsoft';
+}
+
+interface StoredSession {
+  accessToken: string;
+  refreshToken?: string;
+  idToken?: string;
+  expiresAt: number;
 }
 
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
+
   user: AuthUser | null;
   error: string | null;
+
   signIn: (tokens: TokenResponse) => Promise<void>;
   signOut: () => Promise<void>;
-  request: (path: string, options?: RequestInit) => Promise<Response>;
+
+  /**
+   * Returns a valid Microsoft access token.
+   *
+   * This is useful later when n8n needs the
+   * authenticated user's token.
+   */
+  getAccessToken: () => Promise<string>;
 }
 
 const Auth = createContext<AuthContextType | null>(null);
 
-function fromTokens(tokens: TokenResponse, previous?: StoredSession): StoredSession {
-  if (!tokens.accessToken || !tokens.expiresIn) {
-    throw new Error('Microsoft did not return a usable API access token.');
+/**
+ * Convert Expo's TokenResponse into the internal
+ * session format used by the application.
+ */
+function fromTokens(
+  tokens: TokenResponse,
+  previous?: StoredSession
+): StoredSession {
+  if (!tokens.accessToken) {
+    throw new Error(
+      'Microsoft did not return an access token.'
+    );
   }
+
+  /**
+   * Microsoft normally supplies expiresIn.
+   * Use one hour as a fallback for the POC.
+   */
+  const expiresIn = tokens.expiresIn ?? 3600;
+
+  const issuedAt =
+    tokens.issuedAt ?? Date.now() / 1000;
 
   return {
     accessToken: tokens.accessToken,
-    refreshToken: tokens.refreshToken ?? previous?.refreshToken,
-    expiresAt: ((tokens.issuedAt ?? Date.now() / 1000) + tokens.expiresIn) * 1000,
+
+    refreshToken:
+      tokens.refreshToken ??
+      previous?.refreshToken,
+
+    idToken:
+      tokens.idToken ??
+      previous?.idToken,
+
+    expiresAt:
+      (issuedAt + expiresIn) * 1000,
   };
 }
 
-function validateProfile(profile: AuthUser): AuthUser {
-  if (!['student', 'lecturer'].includes(profile.role)) {
-    throw new Error('Your university account has no valid application role. Contact the administrator.');
+/**
+ * Create our local user object directly from the
+ * Microsoft ID token.
+ *
+ * This replaces the old:
+ *
+ * GET 192.168.100.25:6522/api/auth/me
+ */
+function userFromToken(
+  tokens: TokenResponse
+): AuthUser {
+  if (!tokens.idToken) {
+    throw new Error(
+      'Microsoft did not return an ID token.'
+    );
   }
 
-  if (profile.role === 'student' && (!profile.student || !profile.sisId)) {
-    throw new Error('Your university account has no student mapping. Contact the administrator.');
+  let claims: MicrosoftIdTokenClaims;
+
+  try {
+    claims =
+      jwtDecode<MicrosoftIdTokenClaims>(
+        tokens.idToken
+      );
+  } catch {
+    throw new Error(
+      'Unable to read the Microsoft ID token.'
+    );
   }
 
-  return profile;
+  const email =
+    claims.preferred_username ??
+    claims.email ??
+    claims.upn ??
+    '';
+
+  if (!email) {
+    throw new Error(
+      'Microsoft account did not provide an email address.'
+    );
+  }
+
+  /**
+   * IMPORTANT:
+   *
+   * For this POC we're assigning lecturer because
+   * we're testing the lecturer attendance screen.
+   *
+   * Later, role should come from Entra app roles,
+   * your Student Profile API, or another trusted
+   * university source.
+   */
+  return {
+    name: claims.name ?? email,
+    email,
+
+    student: null,
+    sisId: null,
+
+    role: 'lecturer',
+    method: 'microsoft',
+  };
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export function AuthProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const [user, setUser] =
+    useState<AuthUser | null>(null);
 
-  const session = useRef<StoredSession | null>(null);
-  const generation = useRef(0);
-  const refreshing = useRef<Promise<StoredSession> | null>(null);
+  const [isLoading, setLoading] =
+    useState(true);
 
-  const signOut = useCallback(async () => {
-    generation.current += 1;
-    session.current = null;
-    refreshing.current = null;
-    setUser(null);
-    setError(null);
+  const [error, setError] =
+    useState<string | null>(null);
 
-    try {
-      await writeSession(null);
-    } catch {
-      setError('Could not clear saved credentials. Clear app storage before sharing this device.');
-    }
-  }, []);
+  const session =
+    useRef<StoredSession | null>(null);
 
-  const activeSession = useCallback(async (): Promise<StoredSession> => {
-    const current = session.current;
+  const refreshing =
+    useRef<Promise<StoredSession> | null>(
+      null
+    );
 
-    if (!current) throw new Error('Please sign in again.');
-    if (current.expiresAt > Date.now() + 60_000) return current;
+  /**
+   * Sign out locally.
+   *
+   * For this POC no credentials are written
+   * to AsyncStorage / SecureStore.
+   */
+  const signOut =
+    useCallback(async () => {
+      session.current = null;
+      refreshing.current = null;
 
-    if (!current.refreshToken) {
-      await signOut();
-      throw new Error('Your session expired. Please sign in again.');
-    }
+      setUser(null);
+      setError(null);
 
-    if (!refreshing.current) {
-      const version = generation.current;
+      console.log(
+        '[AUTH] Signed out.'
+      );
+    }, []);
 
-      refreshing.current = (async () => {
+  /**
+   * Return a valid session.
+   *
+   * Refresh the Microsoft access token if it is
+   * close to expiring.
+   */
+  const activeSession =
+    useCallback(
+      async (): Promise<StoredSession> => {
+        const current = session.current;
+
+        if (!current) {
+          throw new Error(
+            'Please sign in again.'
+          );
+        }
+
+        /**
+         * Token still has more than one minute
+         * remaining.
+         */
+        if (
+          current.expiresAt >
+          Date.now() + 60_000
+        ) {
+          return current;
+        }
+
+        if (!current.refreshToken) {
+          await signOut();
+
+          throw new Error(
+            'Your Microsoft session expired. Please sign in again.'
+          );
+        }
+
+        if (!refreshing.current) {
+          refreshing.current =
+            (async () => {
+              try {
+                console.log(
+                  '[AUTH] Refreshing Microsoft token...'
+                );
+
+                const tokens =
+                  await refreshAsync(
+                    {
+                      clientId:
+                        authConfig.clientId,
+
+                      refreshToken:
+                        current.refreshToken!,
+
+                      scopes,
+                    },
+                    {
+                      tokenEndpoint,
+                    }
+                  );
+
+                const next =
+                  fromTokens(
+                    tokens,
+                    current
+                  );
+
+                session.current = next;
+
+                console.log(
+                  '[AUTH] Token refreshed.'
+                );
+
+                return next;
+              } catch (err) {
+                console.error(
+                  '[AUTH] Token refresh failed:',
+                  err
+                );
+
+                await signOut();
+
+                throw new Error(
+                  'Your Microsoft session could not be renewed. Please sign in again.'
+                );
+              } finally {
+                refreshing.current = null;
+              }
+            })();
+        }
+
+        return refreshing.current;
+      },
+      [signOut]
+    );
+
+  /**
+   * Called after index.tsx successfully exchanges
+   * the Microsoft authorization code.
+   */
+  const signIn =
+    useCallback(
+      async (
+        tokens: TokenResponse
+      ) => {
         try {
-          const tokens = await withTimeout(
-            refreshAsync(
-              {
-                clientId: authConfig.clientId,
-                refreshToken: current.refreshToken!,
-                scopes,
-              },
-              { tokenEndpoint }
-            )
+          setError(null);
+
+          console.log(
+            '=============================='
           );
 
-          if (version !== generation.current) throw new Error('Sign-in was cancelled.');
+          console.log(
+            '[AUTH] Microsoft token received'
+          );
 
-          const next = fromTokens(tokens, current);
-          await writeSession(next);
+          console.log(
+            '[AUTH] Access token:',
+            tokens.accessToken
+              ? 'YES'
+              : 'NO'
+          );
 
-          if (version !== generation.current) {
-            await writeSession(null);
-            throw new Error('Sign-in was cancelled.');
-          }
+          console.log(
+            '[AUTH] ID token:',
+            tokens.idToken
+              ? 'YES'
+              : 'NO'
+          );
+
+          console.log(
+            '[AUTH] Refresh token:',
+            tokens.refreshToken
+              ? 'YES'
+              : 'NO'
+          );
+
+          /**
+           * Never log the actual token.
+           */
+          const next =
+            fromTokens(tokens);
+
+          const profile =
+            userFromToken(tokens);
 
           session.current = next;
-          return next;
-        } catch {
-          if (version === generation.current) await signOut();
-          throw new Error('Your session could not be renewed. Please sign in again.');
-        } finally {
-          refreshing.current = null;
+
+          setUser(profile);
+
+          console.log(
+            '[AUTH] User:',
+            profile.email
+          );
+
+          console.log(
+            '[AUTH] Microsoft sign-in successful.'
+          );
+
+          console.log(
+            '=============================='
+          );
+        } catch (err) {
+          console.error(
+            '[AUTH] Sign-in failed:',
+            err
+          );
+
+          session.current = null;
+          setUser(null);
+
+          const message =
+            err instanceof Error
+              ? err.message
+              : 'Microsoft sign-in failed.';
+
+          setError(message);
+
+          throw err;
         }
-      })();
-    }
+      },
+      []
+    );
 
-    return refreshing.current;
-  }, [signOut]);
+  /**
+   * Used later if you want to send the Microsoft
+   * access token to n8n.
+   */
+  const getAccessToken =
+    useCallback(async () => {
+      const current =
+        await activeSession();
 
-  const request = useCallback(
-    async (path: string, options?: RequestInit) => {
-      const current = await activeSession();
+      return current.accessToken;
+    }, [activeSession]);
 
-      try {
-        return await apiRequest(path, current.accessToken, options);
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 401) await signOut();
-        throw err;
-      }
-    },
-    [activeSession, signOut]
-  );
-
-  const signIn = useCallback(async (tokens: TokenResponse) => {
-    const version = ++generation.current;
-    setError(null);
-
-    const next = fromTokens(tokens);
-    const response = await apiRequest('/auth/me', next.accessToken);
-    const profile = validateProfile(await response.json());
-
-    if (version !== generation.current) throw new Error('Sign-in was cancelled.');
-
-    await writeSession(next);
-
-    if (version !== generation.current) {
-      await writeSession(null);
-      throw new Error('Sign-in was cancelled.');
-    }
-
-    session.current = next;
-    setUser(profile);
-    setError(null);
-  }, []);
-
+  /**
+   * POC:
+   *
+   * We intentionally DON'T restore a previous
+   * session from the old backend.
+   *
+   * Every browser refresh requires login again.
+   */
   useEffect(() => {
-    let mounted = true;
-
-    void (async () => {
-      try {
-        const saved = await readSession();
-        if (!mounted) return;
-
-        // On web this is normally null because tokens are intentionally kept only in memory.
-        session.current = saved;
-
-        if (saved) {
-          const response = await apiRequest('/auth/me', saved.accessToken);
-          const profile = validateProfile(await response.json());
-          if (mounted) setUser(profile);
-        }
-      } catch {
-        session.current = null;
-        try {
-          await writeSession(null);
-        } catch {
-          // Nothing else to do during startup cleanup.
-        }
-        if (mounted) setError('Your previous session could not be restored. Please sign in again.');
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-
-    return () => {
-      mounted = false;
-    };
+    setLoading(false);
   }, []);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const check = () => {
-      void activeSession().catch(() => {
-        setError('Your session expired. Please sign in again.');
-      });
-    };
-
-    const interval = setInterval(check, 30_000);
-    const listener = AppState.addEventListener('change', state => {
-      if (state === 'active') check();
-    });
-
-    return () => {
-      clearInterval(interval);
-      listener.remove();
-    };
-  }, [user, activeSession]);
 
   return (
     <Auth.Provider
@@ -232,7 +437,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         error,
         signIn,
         signOut,
-        request,
+        getAccessToken,
       }}
     >
       {children}
@@ -241,7 +446,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export function useAuth() {
-  const context = useContext(Auth);
-  if (!context) throw new Error('useAuth must be used within an AuthProvider');
+  const context =
+    useContext(Auth);
+
+  if (!context) {
+    throw new Error(
+      'useAuth must be used within an AuthProvider'
+    );
+  }
+
   return context;
 }

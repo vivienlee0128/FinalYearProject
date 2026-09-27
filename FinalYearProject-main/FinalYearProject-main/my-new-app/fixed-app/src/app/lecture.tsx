@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { useAuth } from '../context/Auth';
-import { saveReport } from '../services/reports';
+// import { saveReport } from '../services/reports';
 interface Unit { code: string; name: string }
 interface Session { id: string; session_token: string; expires_at: string }
 interface Student { id: string; name: string; sis_id: string; status: string }
@@ -47,12 +47,6 @@ export default function LecturerQRScreen() {
     catch (err) { setError(err instanceof Error ? err.message : 'Attendance update failed.'); }
     finally { setBusy(false); }
   }
-  async function exportClass() {
-    setBusy(true); setError('');
-    try { await saveReport(await request(`/reports/class?unit_code=${encodeURIComponent(unit)}`), 'class-attendance.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); }
-    catch (err) { setError(err instanceof Error ? err.message : 'Export failed.'); }
-    finally { setBusy(false); }
-  }
   return <ScrollView contentContainerStyle={{ padding: 24, gap: 18 }}>
     <Text style={{ fontSize: 24, fontWeight: 'bold' }}>Lecturer portal</Text>
     <Text>Local attendance prototype. These sessions do not write to Qwickly.</Text>
@@ -74,6 +68,5 @@ export default function LecturerQRScreen() {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14 }}>{['Present','Late','Absent','Excused'].map(status => <TouchableOpacity disabled={busy} key={status} onPress={() => void override(student,status)}><Text>{status}</Text></TouchableOpacity>)}</View>
       </View>)}
     </>}
-    <TouchableOpacity disabled={busy || !unit} onPress={() => void exportClass()}><Text>Export Qwickly class attendance (.xlsx)</Text></TouchableOpacity>
   </ScrollView>;
 }
