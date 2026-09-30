@@ -1,0 +1,6191 @@
+openapi: 3.0.3
+info:
+  title: Qwickly API
+  version: 1.0.0
+  description: API for Qwickly
+paths:
+  /api/auth/token/:
+    post:
+      operationId: auth_token_create
+      description: Obtain OAuth 2.0 bearer token.
+      summary: Generate Auth Token
+      tags:
+      - Auth 2.0
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientCredentialsTokenRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ClientCredentialsTokenRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ClientCredentialsTokenRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+          description: ''
+  /api/dashboard/v1/course/:
+    get:
+      operationId: Courses_List
+      description: List courses for the current instance with optional search, filters,
+        and includes. By default returns the base course fields. Use include[] to
+        expand nested sections.
+      summary: List courses
+      parameters:
+      - in: query
+        name: has_location_confirmation
+        schema:
+          type: boolean
+        description: true|false (derived from settings)
+      - in: query
+        name: has_nfc_confirmation
+        schema:
+          type: boolean
+        description: true|false (derived from settings)
+      - in: query
+        name: include[]
+        schema:
+          type: array
+          items:
+            type: string
+        description: 'Repeated. Allowed: course_statistics, settings, location, nfc_data,
+          course_enrollments. Note: location and nfc_data are legacy; rooms should
+          be used instead. Note: course_enrollments requires the user:read or user:write
+          scope.'
+      - in: query
+        name: instructor_id
+        schema:
+          type: integer
+        description: Filter by instructor id
+      - in: query
+        name: large_course_enrollment
+        schema:
+          type: boolean
+        description: true|false
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Free text search across several fields
+      - in: query
+        name: semester
+        schema:
+          type: string
+        description: Exact semester name or code (e.g., 2025-Fall)
+      tags:
+      - Course
+      security:
+      - oauth2:
+        - course:read
+        - course:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCourseList'
+          description: Paginated list of courses
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '429':
+          description: Too Many Requests
+    post:
+      operationId: Courses_Create
+      description: |-
+        Create courses. You can send a single course object, or bulk create using {"items": [...], "on_conflict": "ignore|update"}.
+        Request must include lms_id.
+
+        Request may include nested settings, location, and nfc_data.
+
+        Semester field: On input (POST), the "semester" field accepts either the semester NAME or the semester CODE.
+        Responses will always return the semester NAME.
+
+        Note: course_enrollments is read-only. It cannot be created or edited via this API. Requests including course_enrollments will be rejected with a 400 error.
+      summary: Create courses (single or bulk)
+      tags:
+      - Course
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseBulkCreateRequest'
+            examples:
+              SingleCreate:
+                value:
+                  lms_id: '98765'
+                  name: Intro to Algorithms
+                  code: CSCI-200
+                  sis_id: SIS-4455
+                  semester: 2025-Fall
+                  instructors:
+                  - user_identifier: id
+                    value: '123'
+                  room_ids:
+                  - 1
+                  - 2
+                  large_course_enrollment: true
+                  settings:
+                    student_grouping: single
+                    grading:
+                      session_based_grading:
+                        grading_method: points_per_session
+                        column_name: Attendance
+                        points: 1
+                      absence_based_grading:
+                        column_name: Absences
+                        total_points: 20
+                        points_per_absence: -1
+                        forgive_absences: 2
+                        forgive_absences_method: exclude
+                    check_in:
+                      check_in_pin_requirement: false
+                      check_in_qr_mode: false
+                      check_in_timer: 0
+                    absence_limits:
+                    - limit: 1
+                      label: Warning
+                      email_template: Keep attending!
+                    enable_location_confirmation_course: true
+                    enable_nfc_tag_confirmation_course: false
+                  location:
+                    room_name: ET 101
+                    latitude: 39.7684
+                    longitude: -86.1581
+                    radius: 25
+                  nfc_data:
+                    nfc: tag-ABC123
+                summary: Single create
+              BulkCreate(withConflictPolicy):
+                value:
+                  on_conflict: update
+                  items:
+                  - lms_id: '98765'
+                    name: Intro to Algorithms
+                    code: CSCI-200
+                    sis_id: SIS-4455
+                    semester: 2025-Fall
+                    instructors:
+                    - user_identifier: id
+                      value: '123'
+                    large_course_enrollment: true
+                  - lms_id: '54321'
+                    name: Data Structures
+                    code: CSCI-250
+                    sis_id: SIS-7788
+                    semester: 2025-Fall
+                    instructors:
+                    - user_identifier: id
+                      value: '124'
+                    large_course_enrollment: false
+                summary: Bulk create (with conflict policy)
+        required: true
+      security:
+      - oauth2:
+        - course:write
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+              examples:
+                201Created—SingleCourse:
+                  value:
+                    id: 123
+                    lms_id: '98765'
+                    name: Intro to Algorithms
+                    code: CSCI-200
+                    sis_id: SIS-4455
+                    semester: 2025-Fall
+                    instructors:
+                    - id: 123
+                      name: Ada Lovelace
+                      email: ada@uni.edu
+                    large_course_enrollment: true
+                    course_statistics:
+                      average_student_attended_percent: 85.4
+                      average_student_absence: 2.1
+                      first_date_of_attendance: '2025-09-01'
+                      last_date_of_attendance: '2025-11-30'
+                      average_percent_remote: 10.0
+                    settings: null
+                    location: null
+                    nfc_data: null
+                    course_enrollments: null
+                  summary: Successful single course creation
+                  description: Response body returned when a single course is created
+                    successfully.
+          description: Created
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+              examples:
+                200OK—UpdatedExistingCourse:
+                  value:
+                    id: 123
+                    name: Intro to Algorithms (Updated)
+                    code: CSCI-200
+                    lms_id: '98765'
+                    sis_id: SIS-4455
+                    semester: 2025-Fall
+                    instructors:
+                    - id: 123
+                      name: Ada Lovelace
+                      email: ada@uni.edu
+                    large_course_enrollment: false
+                    course_statistics:
+                      average_student_attended_percent: 85.4
+                      average_student_absence: 2.1
+                      first_date_of_attendance: '2025-09-01'
+                      last_date_of_attendance: '2025-11-30'
+                      average_percent_remote: 10.0
+                    settings: null
+                    location: null
+                    nfc_data: null
+                    course_enrollments: null
+                  summary: Single course update (idempotent create path)
+                  description: Returned when the payload matched an existing course
+                    and on_conflict policy led to an update.
+          description: OK (existing/updated)
+        '207':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseBulkCreateMultiStatusResponse'
+              examples:
+                207Multi-Status—BulkCreate:
+                  value:
+                    results:
+                    - status: 201
+                      id: 201
+                    - status: 200
+                      id: 202
+                      detail: 'Updated existing (conflict policy: update)'
+                    - status: 400
+                      detail: Multiple courses found with this code; please use a
+                        unique identifier
+                  summary: Per-item results for bulk create
+                  description: Each item includes a numeric status and optional id/detail.
+          description: Multi-Status (bulk results)
+  /api/dashboard/v1/course-group/:
+    get:
+      operationId: CourseGroups_List
+      description: List all course groups for the **current instance** (resolved from
+        the OAuth bearer token). Results are ordered by `id` ascending.
+      summary: List course groups
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - Course Groups
+      security:
+      - oauth2:
+        - course-group:read
+        - course-group:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCourseGroupList'
+          description: Array of course groups for the current instance.
+        '401':
+          description: Unauthorized (missing/invalid token)
+        '403':
+          description: Forbidden (scope or license check failed)
+        '429':
+          description: Too Many Requests (throttled)
+    post:
+      operationId: CourseGroups_Create
+      description: Create one or more course groups for the **current instance** (resolved
+        from token). Accepts a single object or an array of objects. **Note:** The
+        server sets the `instance` automatically from the token; do not include it
+        in the payload.
+      summary: Create course groups (single or bulk)
+      tags:
+      - Course Groups
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseGroupCreateUpdate'
+            examples:
+              CreateSingleCourseGroup:
+                value:
+                  name: Fall 2025 – ENG Groups
+                  description: Engineering department groups for Fall 2025 term
+                  course_code_pattern: ENG*
+                  type: department
+                summary: Create single course group
+              BulkCreateCourseGroups:
+                value:
+                - name: Intro – Cohort A
+                  description: Freshmen cohort A
+                  course_code_pattern: ENG101-*
+                  type: cohort
+                - name: Intro – Cohort B
+                  description: Freshmen cohort B
+                  course_code_pattern: ENG101-*
+                  type: cohort
+                summary: Bulk create course groups
+        required: true
+      security:
+      - oauth2:
+        - course-group:write
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseGroupDetail'
+              examples:
+                201Created—SingleGroup:
+                  value:
+                    id: 101
+                    name: Fall 2025 – ENG Groups
+                    description: Engineering department groups for Fall 2025 term
+                    course_code_pattern: ENG*
+                    type: department
+                    course_count: 0
+                  summary: Successful single create returns the created group with
+                    id
+                  description: When sending a single object, the response contains
+                    the created group including its id.
+          description: Created group (single create). Returns the created group with
+            id and computed fields.
+        '207':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseGroupBulkCreateMultiStatusResponse'
+              examples:
+                207Multi-Status—BulkCreate:
+                  value:
+                    results:
+                    - index: 0
+                      status: 201
+                      id: 101
+                      detail: created
+                    - index: 1
+                      status: 201
+                      id: 102
+                      detail: created
+                    - index: 2
+                      status: 400
+                      detail: 'Validation error: name is required'
+                  summary: Per-item results for bulk create
+                  description: When creating multiple groups, individual items may
+                    succeed or fail; this example shows a 207 response body.
+          description: 'Multi-Status (bulk). Returned body shape: {"results": [{"index":
+            int, "status": int, "id"?: int, "detail"?: str}]}'
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '429':
+          description: Too Many Requests (throttled)
+  /api/dashboard/v1/course-group/{course_group_id}/:
+    get:
+      operationId: CourseGroups_Retrieve
+      description: Get details of a specific course group by `course_group_id` for
+        the current instance.
+      summary: Retrieve a course group
+      parameters:
+      - in: path
+        name: course_group_id
+        schema:
+          type: integer
+        description: ID of the course group.
+        required: true
+      tags:
+      - Course Groups
+      security:
+      - oauth2:
+        - course-group:read
+        - course-group:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseGroupDetail'
+          description: ''
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '404':
+          description: Not found (no such group for this instance)
+        '429':
+          description: Too Many Requests (throttled)
+    put:
+      operationId: CourseGroups_Update
+      description: Full update (PUT) of a course group identified by `course_group_id`.
+      summary: Replace a course group
+      parameters:
+      - in: path
+        name: course_group_id
+        schema:
+          type: integer
+        description: ID of the course group.
+        required: true
+      tags:
+      - Course Groups
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseGroupCreateUpdate'
+            examples:
+              PUTBody:
+                value:
+                  name: ENG – Fall 2025 (Updated)
+                  description: Updated description
+                  course_code_pattern: ENG*
+                  type: department
+                summary: PUT body
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CourseGroupCreateUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CourseGroupCreateUpdate'
+        required: true
+      security:
+      - oauth2:
+        - course-group:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseGroupDetail'
+          description: Updated group.
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '404':
+          description: Not found
+        '429':
+          description: Too Many Requests (throttled)
+    patch:
+      operationId: CourseGroups_PartialUpdate
+      description: Partial update (PATCH) of a course group identified by `course_group_id`.
+      summary: Partially update a course group
+      parameters:
+      - in: path
+        name: course_group_id
+        schema:
+          type: integer
+        description: ID of the course group.
+        required: true
+      tags:
+      - Course Groups
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCourseGroupCreateUpdate'
+            examples:
+              PATCHBody(renameOnly):
+                value:
+                  name: ENG – Fall 2025 – Renamed
+                summary: PATCH body (rename only)
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCourseGroupCreateUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCourseGroupCreateUpdate'
+      security:
+      - oauth2:
+        - course-group:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseGroupCreateUpdate'
+          description: Updated group.
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '404':
+          description: Not found
+        '429':
+          description: Too Many Requests (throttled)
+    delete:
+      operationId: CourseGroups_Delete
+      description: Delete the specified course group.
+      summary: Delete a course group
+      parameters:
+      - in: path
+        name: course_group_id
+        schema:
+          type: integer
+        description: ID of the course group.
+        required: true
+      tags:
+      - Course Groups
+      security:
+      - oauth2:
+        - course-group:write
+      responses:
+        '204':
+          description: Deleted successfully.
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '404':
+          description: Not found
+        '429':
+          description: Too Many Requests (throttled)
+  /api/dashboard/v1/course-group/{course_group_id}/courses/:
+    get:
+      operationId: CourseGroups_Courses_List
+      description: List all courses that belong to the specified `course_group_id`
+        for the current instance.
+      summary: List courses in a course group
+      parameters:
+      - in: path
+        name: course_group_id
+        schema:
+          type: integer
+        description: ID of the course group.
+        required: true
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - Course Groups
+      security:
+      - oauth2:
+        - course-group:read
+        - course-group:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCourseInGroupList'
+          description: Array of courses contained in the group.
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '404':
+          description: Not found (group not found)
+        '429':
+          description: Too Many Requests (throttled)
+    post:
+      operationId: CourseGroups_Courses_Add
+      description: Add one or more courses to the specified `course_group_id`. Accepts
+        a single object or an array of objects. Exact identifier fields are defined
+        by `CourseToGroupSerializer` (e.g., `course_id`).
+      summary: Add course(s) to a course group
+      parameters:
+      - in: path
+        name: course_group_id
+        schema:
+          type: integer
+        description: ID of the course group that will receive the course(s).
+        required: true
+      tags:
+      - Course Groups
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseToGroup'
+            examples:
+              AddASingleCourseByID:
+                value:
+                  id_identifier: course_id
+                  value: 12345
+                summary: Add a single course by ID
+              BulkAddCoursesByID:
+                value:
+                - id_identifier: course_id
+                  value: 12345
+                - id_identifier: course_code
+                  value: CS-101
+                - id_identifier: course_name
+                  value: Intro to CS
+                summary: Bulk add courses by ID
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CourseToGroup'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CourseToGroup'
+        required: true
+      security:
+      - oauth2:
+        - course-group:write
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCourseInGroupList'
+              examples:
+                201Created—BulkAddResponse:
+                  value:
+                    count: 123
+                    next: http://api.example.org/accounts/?page=4
+                    previous: http://api.example.org/accounts/?page=2
+                    results:
+                    - - id: 12345
+                        name: Intro to CS
+                        courseId: CRS-12345
+                        code: CS-101
+                      - id: 12346
+                        name: Intro to CS
+                        courseId: CRS-12346
+                        code: CS-102
+                  summary: Successful bulk add returns the added courses
+                  description: When sending an array, the response is an array of
+                    the added courses in base shape.
+          description: Added course(s). **If a single object was sent, response will
+            still be an array of length 1.**
+        '400':
+          description: Validation error (e.g., unknown course id)
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '404':
+          description: Not found (group not found)
+        '429':
+          description: Too Many Requests (throttled)
+  /api/dashboard/v1/course-group/{course_group_id}/courses/{course_identifier}/:
+    get:
+      operationId: CourseGroups_Courses_Retrieve
+      description: Retrieve details for a specific course that is a member of the
+        given `course_group_id`. `course_identifier` supports the identifier formats
+        your API accepts (e.g., numeric course ID). If the course is not a member
+        of the group, a 404 is returned.
+      summary: Retrieve a specific course in a course group
+      parameters:
+      - in: path
+        name: course_group_id
+        schema:
+          type: integer
+        description: ID of the course group.
+        required: true
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        description: Accepts non-primary identifier like, course_code:{code}, course_id:{id},
+          course_name:{name}.
+        required: true
+        examples:
+          GetCourseByInternalID(pk):
+            value: course_id:1111
+            summary: Get course by internal ID(pk)
+            description: Get course by internal course id
+          GetCourseByCourseCode:
+            value: course_code:CS-101
+            summary: Get course by course code
+            description: Get course by course code
+          GetCourseByCourseName:
+            value: course_name:Intro to CS
+            summary: Get course by course name
+            description: Get course by course name
+      tags:
+      - Course Groups
+      security:
+      - oauth2:
+        - course-group:read
+        - course-group:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseInGroup'
+          description: ''
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '404':
+          description: Not found (course not in this group / not resolvable)
+        '429':
+          description: Too Many Requests (throttled)
+    delete:
+      operationId: CourseGroups_Courses_Delete
+      description: Remove (idempotently) a specific course from the given `course_group_id`.
+        If the course is not a member, the operation is treated idempotently.
+      summary: Remove a course from a course group
+      parameters:
+      - in: path
+        name: course_group_id
+        schema:
+          type: integer
+        description: ID of the course group.
+        required: true
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        description: Accepts non-primary identifier like, course_code:{code}, course_id:{id},
+          course_name:{name}.
+        required: true
+        examples:
+          DeleteCourseByInternalID(pk):
+            value: course_id:1111
+            summary: Delete course by internal ID(pk)
+            description: Get course by internal course id
+          DeleteCourseByCourseCode:
+            value: course_code:CS-101
+            summary: Delete course by course code
+            description: Get course by course code
+          DeleteCourseByCourseName:
+            value: course_name:Intro to CS
+            summary: Delete course by course name
+            description: Get course by course name
+      tags:
+      - Course Groups
+      security:
+      - oauth2:
+        - course-group:write
+      responses:
+        '204':
+          description: Removed successfully (idempotent).
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '404':
+          description: Not found (group or course not resolvable)
+        '429':
+          description: Too Many Requests (throttled)
+  /api/dashboard/v1/course/{course_identifier}/:
+    get:
+      operationId: Course_Detail_GET
+      description: 'GET a single course by identifier. Identifier syntax: id:{pk}
+        | lms_id:{value} | sis_id:{value} | code:{value} or simply {pk} (defaults
+        to id)'
+      summary: Get course detail
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        description: 'One of: id:{pk} | lms_id:{value} | sis_id:{value} | code:{value}'
+        required: true
+      - in: query
+        name: include[]
+        schema:
+          type: array
+          items:
+            type: string
+        description: 'Repeated. Allowed: course_statistics, settings, location, nfc_data,
+          course_enrollments, absence_limits. Note: location and nfc_data are legacy;
+          rooms should be used instead. Note: course_enrollments requires the user:read
+          or user:write scope.'
+      tags:
+      - Course
+      security:
+      - oauth2:
+        - course:read
+        - course:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+          description: Course detail
+    put:
+      operationId: Course_Update
+      description: |-
+        Replace all course fields using the request body shape below.
+
+        Semester field: On input (PUT), the "semester" field accepts either the semester NAME or the semester CODE. Responses will always return the semester NAME.
+
+        Note: course_enrollments is read-only and cannot be created or edited via this API. Requests including course_enrollments will be rejected with a 400 error.
+      summary: Full update course
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        required: true
+      tags:
+      - Course
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseUpdateRequest'
+            examples:
+              FullUpdateExample:
+                value:
+                  name: Intro to Algorithms
+                  code: CSCI-200
+                  lms_id: '98765'
+                  sis_id: SIS-4455
+                  semester: 2025-Fall
+                  instructors:
+                  - user_identifier: id
+                    value: '123'
+                  room_ids:
+                  - 1
+                  - 2
+                  large_course_enrollment: true
+                  settings:
+                    student_grouping: single
+                    grading:
+                      session_based_grading:
+                        grading_method: points_per_session
+                        column_name: Attendance
+                        points: 1
+                      absence_based_grading:
+                        column_name: Absences
+                        total_points: 20
+                        points_per_absence: -1
+                        forgive_absences: 2
+                        forgive_absences_method: exclude
+                    check_in:
+                      check_in_pin_requirement: false
+                      check_in_qr_mode: false
+                      check_in_timer: 0
+                    absence_limits:
+                    - limit: 1
+                      label: Warning
+                      email_template: Keep attending!
+                    enable_location_confirmation_course: true
+                    enable_nfc_tag_confirmation_course: false
+                  location:
+                    room_name: ET 101
+                    latitude: 39.7684
+                    longitude: -86.1581
+                    radius: 25
+                  nfc_data:
+                    nfc: tag-ABC123
+                summary: Full update example
+      security:
+      - oauth2:
+        - course:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+          description: ''
+    patch:
+      operationId: Course_Partial_Update
+      description: |-
+        Update only the provided fields. You can patch base fields (name, code, sis_id, semester, instructors, large_course_enrollment) and nested sections (settings, location, nfc_data).
+
+        Semester field: On input (PATCH), the "semester" field accepts either the semester NAME or the semester CODE. Responses will always return the semester NAME.
+
+        Within settings, you may patch: student_grouping, grading (session_based_grading + absence_based_grading), check_in, absence_limits, enable_location_confirmation_course, enable_nfc_tag_confirmation_course.
+
+        Note: course_enrollments is read-only. It cannot be edited via PATCH/PUT/POST. Requests including this key will be rejected with a 400 error.
+
+        Note: The read-only flags returned in GET responses — is_limit_readonly, is_label_readonly, is_email_template_readonly — cannot be patched. Requests including these keys under settings.absence_limits will be rejected with a 400 error.
+      summary: Partial update course
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        required: true
+      tags:
+      - Course
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCourseUpdateRequest'
+            examples:
+              PartialUpdate:AbsenceLimitsOnly:
+                value:
+                  settings:
+                    absence_limits:
+                    - limit: 1
+                      label: Caution
+                      email_template: Hi {-first-} {-last-}, you've reached {-limit-1-}.
+                    - limit: 2
+                      label: Maximum
+                      email_template: Hi {-first-} {-last-}, you've reached {-limit-2-}.
+                    - limit: 3
+                      label: Surpassed
+                      email_template: Hi {-first-} {-last-}, you've reached {-limit-3-}.
+                summary: 'Partial update: absence_limits only'
+                description: Patch only the absence limits (values, labels, and email
+                  templates).
+              PartialUpdate:Comprehensive:
+                value:
+                  name: Intro to Algorithms (Honors)
+                  code: CSCI-200H
+                  sis_id: SIS-4455-H
+                  semester: 2025-Fall
+                  instructors:
+                  - user_identifier: id
+                    value: '123'
+                  - user_identifier: id
+                    value: '124'
+                  large_course_enrollment: false
+                  settings:
+                    student_grouping: single
+                    grading:
+                      session_based_grading:
+                        grading_method: total_points
+                        column_name: Attendance
+                        points: 100
+                      absence_based_grading:
+                        column_name: Absences
+                        total_points: 20
+                        points_per_absence: -1
+                        forgive_absences: 2
+                        forgive_absences_method: exclude
+                    check_in:
+                      check_in_pin_requirement: false
+                      check_in_qr_mode: true
+                      check_in_timer: 60
+                    absence_limits:
+                    - limit: 1
+                      label: Caution
+                      email_template: Template 1
+                    - limit: 2
+                      label: Maximum
+                      email_template: Template 2
+                    - limit: 3
+                      label: Surpassed
+                      email_template: Template 3
+                    enable_location_confirmation_course: true
+                    enable_nfc_tag_confirmation_course: false
+                  location:
+                    room_name: ET 202
+                    latitude: 39.77
+                    longitude: -86.16
+                    radius: 30
+                  nfc_data:
+                    nfc: updated-tag
+                summary: 'Partial update: comprehensive'
+                description: Patch a mix of base fields and nested sections including
+                  settings, location, and NFC.
+      security:
+      - oauth2:
+        - course:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+          description: ''
+    delete:
+      operationId: Course_Delete
+      description: Delete the specified course by identifier. This operation is idempotent.
+      summary: Delete course
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        required: true
+      tags:
+      - Course
+      security:
+      - oauth2:
+        - course:write
+      responses:
+        '204':
+          description: Deleted successfully
+  /api/dashboard/v1/course/{course_identifier}/session/:
+    get:
+      operationId: Course_Sessions_List
+      description: |-
+        List sessions under a course with optional filtering and pagination.
+
+        Query parameter details:
+        - search: Free-text across id and title. Examples: search=Week, search=105.
+        - created_at: Creation date of the session in YYYY-MM-DD (UTC) format. Example: created_at=2025-10-01.
+        - start_after: Filter sessions starting on or after this date (YYYY-MM-DD). Example: start_after=2025-10-01.
+        - start_before: Filter sessions starting on or before this date (YYYY-MM-DD). Example: start_before=2025-10-15.
+        - is_pre_created: Boolean (true|false). true returns only planned/scheduled sessions, false returns only sessions not marked as pre-created.
+        - using_location_context: Boolean (true|false). Filter sessions that used Location Context. Example: using_location_context=true.
+        - using_location_confirmation: Boolean (true|false). Filters sessions that required/used location confirmation.
+        - using_nfc: Boolean (true|false). Filter sessions that used NFC tag confirmation. Example: using_nfc=false.
+        - method: String; filters by the session method (case-insensitive exact match). Common values include: "manual", "check-in", "card-reader", "qr", "nfc", "kiosk", "import", "pre-created".
+        - page, page_size: Standard pagination controls.
+      summary: List sessions for a course
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        description: 'One of: id:{pk} | lms_id:{value} | sis_id:{value} | code:{value}
+          — or simply {pk} (defaults to id)'
+        required: true
+      - in: query
+        name: created_at
+        schema:
+          type: string
+          format: date
+        description: 'Creation date (YYYY-MM-DD). Example: created_at=2025-10-01'
+      - in: query
+        name: is_pre_created
+        schema:
+          type: boolean
+        description: 'Boolean flag (true|false). Example: is_pre_created=true'
+      - in: query
+        name: method
+        schema:
+          type: string
+        description: 'String; case-insensitive. Common values: manual, check-in, card-reader,
+          qr, nfc, kiosk, import, pre-created. Example: method=manual'
+      - in: query
+        name: page
+        schema:
+          type: integer
+        description: 1-based page index
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+        description: Items per page
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: 'Free-text across id and title. Examples: search=Week 1, search=1002'
+      - in: query
+        name: start_after
+        schema:
+          type: string
+          format: date
+        description: 'Filter sessions starting on or after this date (YYYY-MM-DD).
+          Example: start_after=2025-10-01'
+      - in: query
+        name: start_before
+        schema:
+          type: string
+          format: date
+        description: 'Filter sessions starting on or before this date (YYYY-MM-DD).
+          Example: start_before=2025-10-15'
+      - in: query
+        name: using_location_confirmation
+        schema:
+          type: boolean
+        description: 'Boolean flag (true|false). Example: using_location_confirmation=false'
+      - in: query
+        name: using_location_context
+        schema:
+          type: boolean
+        description: 'Boolean flag (true|false). Example: using_location_context=true'
+      - in: query
+        name: using_nfc
+        schema:
+          type: boolean
+        description: 'Boolean flag (true|false). Example: using_nfc=false'
+      tags:
+      - Session
+      security:
+      - oauth2:
+        - course:write
+      - oauth2:
+        - course:read
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSessionList'
+          description: Paginated list of sessions
+    post:
+      operationId: Course_Sessions_Create
+      description: |-
+        Create sessions under a course. Send a single session object or bulk with {"items": [...], "on_conflict": "ignore|update"}.
+
+        Required fields (POST create):
+        - Single object: title, start_time are required.
+        - Bulk: each item in items[] must include title and start_time.
+
+        Notes:
+        - On creation, the API will set method to "Pre-created" and is_pre_created to true by default.
+        - Bulk POST response uses per-item status: created | updated | ignored | failed. With on_conflict=ignore, duplicates are returned as ignored; with on_conflict=update, duplicates are returned as updated.
+      summary: Create sessions (single or bulk)
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        required: true
+      tags:
+      - Session
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionCreateRequest'
+            examples:
+              SingleCreate:
+                value:
+                  title: Week 7 Lecture
+                  start_time: '2025-10-15T10:00:00-04:00'
+                summary: Single create
+              BulkCreate:
+                value:
+                  on_conflict: update
+                  items:
+                  - title: Week 7 Lecture
+                    start_time: '2025-10-15T10:00:00-04:00'
+                  - title: Lab 7
+                    start_time: '2025-10-17T10:00:00-04:00'
+                summary: Bulk create
+        required: true
+      security:
+      - oauth2:
+        - course:write
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+              examples:
+                SingleCreate—201Response:
+                  value:
+                    id: 1050
+                    title: Week 7 Lecture
+                    start_time: '2025-10-15T10:00:00-04:00'
+                    method: Pre-created
+                    started_by: null
+                    is_pre_created: true
+                    using_location_context: false
+                    using_location_confirmation: true
+                    using_nfc: false
+                    group_id: null
+                    section_id: null
+                    created_at: '2025-09-30T09:15:00Z'
+                    edited_at: '2025-09-30T09:15:00Z'
+                  summary: Single create — 201 response
+                  description: Successful single session creation returns the created
+                    session object.
+                BulkCreate—207Response:
+                  value:
+                    results:
+                    - id: 1050
+                      status: created
+                    - id: 1051
+                      status: updated
+                    - status: ignored
+                      detail: 'Existing session matched and left unchanged (conflict
+                        policy: ignore)'
+                    - status: failed
+                      detail: Validation error message here
+                  summary: Bulk create — 207 response
+                  description: Bulk creation returns per-item statuses with ids.
+          description: Created
+        '207':
+          description: Multi-Status (bulk results)
+    put:
+      operationId: Course_Sessions_Bulk_Update
+      description: |-
+        Bulk update sessions for a course. Creation is not allowed on PUT. Each item must include id, title, and start_time.
+
+        Rules:
+        - id: The session id to update. If a session is not found under the course, the item is reported as failed and nothing is created.
+        - title and start_time: Mandatory on PUT for every item — items missing these fields are rejected.
+      summary: Update sessions (bulk, update-only)
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        required: true
+      tags:
+      - Session
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionBulkPutRequest'
+            examples:
+              BulkUpdate(allItemsRequireId,Title,StartTime):
+                value:
+                  items:
+                  - id: 1001
+                    title: Week 5 Lecture
+                    start_time: '2025-10-01T10:00:00-04:00'
+                  - id: 1002
+                    title: Week 6 Lecture
+                    start_time: '2025-10-08T10:00:00-04:00'
+                summary: Bulk update (all items require id, title, start_time)
+        required: true
+      security:
+      - oauth2:
+        - course:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkOperationResult'
+              examples:
+                BulkUpdate—200Response:
+                  value:
+                    results:
+                    - id: 1001
+                      status: updated
+                    - status: failed
+                      detail: Session not found
+                  summary: Bulk update — 200 response
+                  description: Each item returns its id and status. PUT never creates;
+                    items not found are reported as failed.
+          description: Results
+    patch:
+      operationId: Course_Sessions_Bulk_Patch
+      description: |-
+        Partially update multiple sessions in one call.
+
+        Rules:
+        - id: Mandatory for every item; identifies the session to update under the course.
+        - Other fields are optional and only those provided will be updated. Allowed fields: title, start_time.
+      summary: Partial update sessions (bulk)
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        required: true
+      tags:
+      - Session
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSessionBulkPatchRequest'
+            examples:
+              BulkPartialUpdate(idRequiredForEachItem):
+                value:
+                  items:
+                  - id: 1001
+                    title: Week 5 Lecture (Updated)
+                  - id: 1002
+                    start_time: '2025-10-08T11:00:00Z'
+                summary: Bulk partial update (id required for each item)
+      security:
+      - oauth2:
+        - course:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkOperationResult'
+              examples:
+                BulkPartialUpdate—200Response:
+                  value:
+                    results:
+                    - id: 1001
+                      status: updated
+                    - status: failed
+                      detail: Session not found
+                  summary: Bulk partial update — 200 response
+                  description: Each item returns id and update status.
+          description: Results
+  /api/dashboard/v1/course/{course_identifier}/session/{session_id}/:
+    get:
+      operationId: Course_Session_Detail
+      description: |-
+        Fetch a single session by id under the specified course.
+
+        Important: If the session does not exist under the course, a 404 Not Found is returned.
+      summary: Get a session
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: session_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Session
+      security:
+      - oauth2:
+        - course:write
+      - oauth2:
+        - course:read
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+          description: Session detail
+    put:
+      operationId: Course_Session_Update
+      description: 'Update a single session by id under the specified course. Only
+        the following fields can be updated: title, start_time.'
+      summary: Update session
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: session_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Session
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Session'
+        required: true
+      security:
+      - oauth2:
+        - course:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+          description: ''
+    patch:
+      operationId: Course_Session_Patch
+      description: |+
+        Patch a single session. Only the following fields can be updated in the request body: title, start_time. The id field is not accepted in the request body for this endpoint.
+
+      summary: Update a session (partial)
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: session_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Session
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSessionDetailPatchRequest'
+            examples:
+              PartialUpdate—Request:
+                value:
+                  title: Week 5 Lecture (Rescheduled)
+                  start_time: '2025-10-01T11:00:00Z'
+                summary: Partial update — request
+                description: Allowed patchable fields for a single session.
+      security:
+      - oauth2:
+        - course:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleStatusResponse'
+              examples:
+                PartialUpdate—200Response:
+                  value:
+                    id: 1001
+                    status: updated
+                  summary: Partial update — 200 response
+                  description: Indicates the session was updated successfully.
+          description: Updated
+    delete:
+      operationId: Course_Session_Delete
+      description: |-
+        Soft-delete the specified session by id under the course.
+
+        - If the session exists and is not hidden, it will be marked is_hidden=true and deletion_date will be set.
+        - If the session is already soft-deleted (is_hidden=true), the operation is idempotent and still returns 204.
+        - If the session does not exist under the course, 404 is returned.
+      summary: Delete a session
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: session_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Session
+      security:
+      - oauth2:
+        - course:write
+      responses:
+        '204':
+          description: Deleted successfully (idempotent)
+  /api/dashboard/v1/course/{course_identifier}/session/{session_id}/record/:
+    get:
+      operationId: AttendanceRecords_List
+      description: List all attendance records for a specific session in a course.
+      summary: List attendance records for a session
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        required: true
+      - in: query
+        name: created_after
+        schema:
+          type: string
+          format: date-time
+        description: Filter records created after this datetime
+      - in: query
+        name: created_before
+        schema:
+          type: string
+          format: date-time
+        description: Filter records created before this datetime
+      - in: query
+        name: is_updated
+        schema:
+          type: boolean
+        description: Filter by update status
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: path
+        name: session_id
+        schema:
+          type: integer
+        required: true
+      - in: query
+        name: status_id
+        schema:
+          type: integer
+        description: Filter by Attendance Status ID
+      - in: query
+        name: user_id
+        schema:
+          type: integer
+        description: Filter by internal User ID
+      tags:
+      - Attendance Records
+      security:
+      - oauth2:
+        - session:read
+        - user:read
+        - session:write
+        - user:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRecordList'
+          description: List of attendance records
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Course or Session not found
+    post:
+      operationId: AttendanceRecords_Create
+      description: Create a new attendance record for a user in a specific session.
+      summary: Create a new attendance record
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: session_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Attendance Records
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RecordCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RecordCreateRequest'
+        required: true
+      security:
+      - oauth2:
+        - session:write
+        - user:write
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Record'
+          description: Record created successfully
+        '400':
+          description: Bad Request / Validation Error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Course, Session, or User not found
+        '409':
+          description: Record already exists for this user and session
+  /api/dashboard/v1/course/{course_identifier}/session/{session_id}/record/{record_id}/:
+    get:
+      operationId: AttendanceRecords_Retrieve
+      description: Retrieve details of a specific attendance record.
+      summary: Get attendance record details
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: record_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: session_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Attendance Records
+      security:
+      - oauth2:
+        - session:read
+        - user:read
+        - session:write
+        - user:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Record'
+          description: Attendance record details
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Course, Session, or Record not found
+    put:
+      operationId: AttendanceRecords_Update
+      description: Update an existing attendance record (full update).
+      summary: Update attendance record
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: record_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: session_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Attendance Records
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RecordUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RecordUpdateRequest'
+      security:
+      - oauth2:
+        - session:write
+        - user:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Record'
+          description: Record updated successfully
+        '400':
+          description: Bad Request / Validation Error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Course, Session, or Record not found
+    patch:
+      operationId: AttendanceRecords_PartialUpdate
+      description: Update specific fields of an existing attendance record.
+      summary: Partially update attendance record
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: record_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: session_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Attendance Records
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedRecordUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedRecordUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedRecordUpdateRequest'
+      security:
+      - oauth2:
+        - session:write
+        - user:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Record'
+          description: Record partially updated successfully
+        '400':
+          description: Bad Request / Validation Error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Course, Session, or Record not found
+    delete:
+      operationId: AttendanceRecords_Delete
+      description: Delete a specific attendance record.
+      summary: Delete attendance record
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: record_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: session_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Attendance Records
+      security:
+      - oauth2:
+        - session:write
+        - user:write
+      responses:
+        '204':
+          description: Record deleted successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Course, Session, or Record not found
+  /api/dashboard/v1/course/{course_identifier}/status/:
+    get:
+      operationId: AttendanceStatuses_List
+      description: |-
+        Returns the attendance statuses available for the given course, ordered by `order`.
+
+        The response includes both the default statuses configured for the instance and any custom statuses added for this specific course. Only active, visible statuses are returned.
+      summary: List attendance statuses for a course
+      parameters:
+      - in: path
+        name: course_identifier
+        schema:
+          type: string
+        description: 'One of: id:{pk} | lms_id:{value} | sis_id:{value} | code:{value}
+          — or simply {pk} (defaults to id)'
+        required: true
+      tags:
+      - Attendance Statuses
+      security:
+      - oauth2:
+        - course:read
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAttendanceStatusList'
+          description: List of attendance statuses
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Course not found
+  /api/dashboard/v1/jobs/:
+    get:
+      operationId: dashboard_v1_jobs_list
+      description: |-
+        Gives views a consistent way to get the instance from the Bearer token,
+        and inject it into serializer context.
+      summary: List CSV upload jobs
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - CSV Upload Status
+      security:
+      - oauth2:
+        - user:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUploadJobStatusList'
+              examples:
+                ExampleResponse:
+                  value:
+                    count: 123
+                    next: http://api.example.org/accounts/?page=4
+                    previous: http://api.example.org/accounts/?page=2
+                    results:
+                    - - upload_id: 123e4567-e89b-12d3-a456-426614174000
+                        status: COMPLETED
+                        selected_id_field: lms_id
+                        total_rows: 100
+                        processed_rows: 100
+                        error_rows: 0
+                        summary: Successfully processed 100 rows with 0 errors.
+                        upload_target: customassociatedids
+                        original_filename: custom_associated_ids_bb_lms_id.csv
+                        uploaded_by: alice@example.edu
+                        instance_id: 42
+                        created_at: '2023-10-01T12:00:00Z'
+                        started_at: '2023-10-01T12:00:00Z'
+                        finished_at: '2023-10-01T12:05:00Z'
+                        updated_at: '2023-10-01T12:05:00Z'
+                      - upload_id: 123e4567-e89b-12d3-a456-426614174001
+                        status: FAILED
+                        selected_id_field: sis_id
+                        total_rows: 50
+                        processed_rows: 30
+                        error_rows: 20
+                        summary: Failed due to invalid format in some rows.
+                        upload_target: customassociatedids
+                        original_filename: custom_associated_ids_bb_sis_id.csv
+                        uploaded_by: bob@example.edu
+                        instance_id: 42
+                        created_at: '2023-10-02T14:00:00Z'
+                        started_at: '2023-10-02T14:00:00Z'
+                        finished_at: '2023-10-02T14:10:00Z'
+                        updated_at: '2023-10-02T14:10:00Z'
+                  summary: A list of upload jobs
+                  description: A list of upload jobs with their statuses and details
+          description: ''
+        '401':
+          description: Unauthorized
+  /api/dashboard/v1/jobs/{upload_id}/:
+    get:
+      operationId: dashboard_v1_jobs_retrieve
+      description: |-
+        Gives views a consistent way to get the instance from the Bearer token,
+        and inject it into serializer context.
+      summary: Get CSV job status
+      parameters:
+      - in: path
+        name: upload_id
+        schema:
+          type: string
+        description: Upload job id (UUID)
+        required: true
+      tags:
+      - CSV Upload Status
+      security:
+      - oauth2:
+        - user:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadJobStatus'
+              examples:
+                ExampleResponse:
+                  value:
+                    upload_id: 1ce408d5-6e68-485a-bc1a-494b5bcd550b
+                    status: completed
+                    selected_id_field: sis_id
+                    total_rows: 1
+                    processed_rows: 0
+                    error_rows: 1
+                    summary: Successfully processed 0 rows with 1 errors.
+                    upload_target: customassociatedids
+                    original_filename: custom_associated_ids_bb_sis_id.csv
+                    uploaded_by: bart@example.com
+                    instance_id: 42
+                    created_at: '2025-10-17T22:24:34.916848Z'
+                    started_at: '2025-10-17T22:24:34.995882Z'
+                    finished_at: '2025-10-17T22:24:35.258636Z'
+                    updated_at: '2025-10-17T22:24:34.916901Z'
+                  summary: A single upload job status
+                  description: Details of a single upload job with its status and
+                    metrics
+          description: ''
+        '404':
+          description: Not found
+        '401':
+          description: Unauthorized
+  /api/dashboard/v1/location/campus/:
+    get:
+      operationId: Locations_Campus_List
+      description: List all campuses for the current client.
+      summary: List Campuses
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - Locations
+      security:
+      - oauth2:
+        - location:read
+      - oauth2:
+        - location:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCampusList'
+          description: ''
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+    post:
+      operationId: Locations_Campus_Create
+      description: Create a new campus for the current client.
+      summary: Create Campus
+      tags:
+      - Locations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Campus'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Campus'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Campus'
+        required: true
+      security:
+      - oauth2:
+        - location:write
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campus'
+          description: ''
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+  /api/dashboard/v1/location/campus/{campus_id}/:
+    get:
+      operationId: Locations_Campus_Retrieve
+      description: Retrieve details of a specific campus.
+      summary: Get Campus
+      parameters:
+      - in: path
+        name: campus_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Locations
+      security:
+      - oauth2:
+        - location:read
+      - oauth2:
+        - location:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campus'
+          description: ''
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+    put:
+      operationId: Locations_Campus_Update
+      description: Update all fields of a specific campus.
+      summary: Update Campus
+      parameters:
+      - in: path
+        name: campus_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Locations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Campus'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Campus'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Campus'
+        required: true
+      security:
+      - oauth2:
+        - location:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campus'
+          description: ''
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+    patch:
+      operationId: Locations_Campus_PartialUpdate
+      description: Update some fields of a specific campus.
+      summary: Partially Update Campus
+      parameters:
+      - in: path
+        name: campus_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Locations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCampus'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCampus'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCampus'
+      security:
+      - oauth2:
+        - location:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campus'
+          description: ''
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+    delete:
+      operationId: Locations_Campus_Delete
+      description: Delete a specific campus.
+      summary: Delete Campus
+      parameters:
+      - in: path
+        name: campus_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Locations
+      security:
+      - oauth2:
+        - location:write
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+  /api/dashboard/v1/location/campus/{campus_id}/building/:
+    get:
+      operationId: Locations_Building_List
+      description: List all buildings for a specific campus.
+      summary: List Buildings
+      parameters:
+      - in: path
+        name: campus_id
+        schema:
+          type: integer
+        description: ID of the campus that owns the buildings
+        required: true
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - Locations
+      security:
+      - oauth2:
+        - location:read
+      - oauth2:
+        - location:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBuildingList'
+          description: ''
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Campus Not Found
+    post:
+      operationId: Locations_Building_Create
+      description: Create a new building for a specific campus.
+      summary: Create Building
+      parameters:
+      - in: path
+        name: campus_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Locations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Building'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Building'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Building'
+        required: true
+      security:
+      - oauth2:
+        - location:write
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Building'
+          description: ''
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Campus Not Found
+  /api/dashboard/v1/location/campus/{campus_id}/building/{building_id}/:
+    get:
+      operationId: Locations_Building_Retrieve
+      description: Retrieve details of a specific building.
+      summary: Get Building
+      parameters:
+      - in: path
+        name: building_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: campus_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Locations
+      security:
+      - oauth2:
+        - location:read
+      - oauth2:
+        - location:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Building'
+          description: ''
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+    put:
+      operationId: Locations_Building_Update
+      description: Update all fields of a specific building.
+      summary: Update Building
+      parameters:
+      - in: path
+        name: building_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: campus_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Locations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Building'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Building'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Building'
+        required: true
+      security:
+      - oauth2:
+        - location:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Building'
+          description: ''
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+    patch:
+      operationId: Locations_Building_PartialUpdate
+      description: Update some fields of a specific building.
+      summary: Partially Update Building
+      parameters:
+      - in: path
+        name: building_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: campus_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Locations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedBuilding'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedBuilding'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedBuilding'
+      security:
+      - oauth2:
+        - location:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Building'
+          description: ''
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+    delete:
+      operationId: Locations_Building_Delete
+      description: Delete a specific building.
+      summary: Delete Building
+      parameters:
+      - in: path
+        name: building_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: campus_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Locations
+      security:
+      - oauth2:
+        - location:write
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+  /api/dashboard/v1/location/campus/{campus_id}/building/{building_id}/room/:
+    get:
+      operationId: Locations_Room_List
+      description: List all rooms for a specific building.
+      summary: List Rooms
+      parameters:
+      - in: path
+        name: building_id
+        schema:
+          type: integer
+        description: ID of the building that owns the rooms
+        required: true
+      - in: path
+        name: campus_id
+        schema:
+          type: integer
+        description: ID of the campus that owns the building
+        required: true
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - Locations
+      security:
+      - oauth2:
+        - location:read
+      - oauth2:
+        - location:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRoomList'
+          description: ''
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Building Not Found
+    post:
+      operationId: Locations_Room_Create
+      description: Create a new room for a specific building.
+      summary: Create Room
+      parameters:
+      - in: path
+        name: building_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: campus_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Locations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Room'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Room'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Room'
+        required: true
+      security:
+      - oauth2:
+        - location:write
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+          description: ''
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Building Not Found
+  /api/dashboard/v1/location/campus/{campus_id}/building/{building_id}/room/{room_id}/:
+    get:
+      operationId: Locations_Room_Retrieve
+      description: Retrieve details of a specific room.
+      summary: Get Room
+      parameters:
+      - in: path
+        name: building_id
+        schema:
+          type: integer
+        description: ID of the building that owns the room
+        required: true
+      - in: path
+        name: campus_id
+        schema:
+          type: integer
+        description: ID of the campus that owns the building
+        required: true
+      - in: path
+        name: room_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Locations
+      security:
+      - oauth2:
+        - location:read
+      - oauth2:
+        - location:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+          description: ''
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+    put:
+      operationId: Locations_Room_Update
+      description: Update all fields of a specific room.
+      summary: Update Room
+      parameters:
+      - in: path
+        name: building_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: campus_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: room_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Locations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Room'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Room'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Room'
+        required: true
+      security:
+      - oauth2:
+        - location:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+          description: ''
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+    patch:
+      operationId: Locations_Room_PartialUpdate
+      description: Update some fields of a specific room.
+      summary: Partially Update Room
+      parameters:
+      - in: path
+        name: building_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: campus_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: room_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Locations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedRoom'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedRoom'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedRoom'
+      security:
+      - oauth2:
+        - location:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+          description: ''
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+    delete:
+      operationId: Locations_Room_Delete
+      description: Delete a specific room.
+      summary: Delete Room
+      parameters:
+      - in: path
+        name: building_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: campus_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: room_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Locations
+      security:
+      - oauth2:
+        - location:write
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+  /api/dashboard/v1/schema/:
+    get:
+      operationId: dashboard_v1_schema_retrieve
+      description: |-
+        OpenApi3 schema for this API. Format can be selected via content negotiation.
+
+        - YAML: application/vnd.oai.openapi
+        - JSON: application/vnd.oai.openapi+json
+      summary: Get API Schema
+      parameters:
+      - in: query
+        name: format
+        schema:
+          type: string
+          enum:
+          - json
+          - yaml
+      - in: query
+        name: lang
+        schema:
+          type: string
+          enum:
+          - af
+          - ar
+          - ar-dz
+          - ast
+          - az
+          - be
+          - bg
+          - bn
+          - br
+          - bs
+          - ca
+          - ckb
+          - cs
+          - cy
+          - da
+          - de
+          - dsb
+          - el
+          - en
+          - en-au
+          - en-gb
+          - eo
+          - es
+          - es-ar
+          - es-co
+          - es-mx
+          - es-ni
+          - es-ve
+          - et
+          - eu
+          - fa
+          - fi
+          - fr
+          - fy
+          - ga
+          - gd
+          - gl
+          - he
+          - hi
+          - hr
+          - hsb
+          - ht
+          - hu
+          - hy
+          - ia
+          - id
+          - ig
+          - io
+          - is
+          - it
+          - ja
+          - ka
+          - kab
+          - kk
+          - km
+          - kn
+          - ko
+          - ky
+          - lb
+          - lt
+          - lv
+          - mk
+          - ml
+          - mn
+          - mr
+          - ms
+          - my
+          - nb
+          - ne
+          - nl
+          - nn
+          - os
+          - pa
+          - pl
+          - pt
+          - pt-br
+          - ro
+          - ru
+          - sk
+          - sl
+          - sq
+          - sr
+          - sr-latn
+          - sv
+          - sw
+          - ta
+          - te
+          - tg
+          - th
+          - tk
+          - tr
+          - tt
+          - udm
+          - ug
+          - uk
+          - ur
+          - uz
+          - vi
+          - zh-hans
+          - zh-hant
+      tags:
+      - Schema
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/vnd.oai.openapi:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/yaml:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/vnd.oai.openapi+json:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/dashboard/v1/upload-custom-user-ids/:
+    post:
+      operationId: dashboard_v1_upload_custom_user_ids_create
+      description: Accepts a CSV file of rows "student_id,custom_id" and updates users'
+        custom_associated_id. Use selected_id_field=lms_id or sis_id.
+      summary: Upload Custom Associated IDs CSV
+      tags:
+      - CSV File Uploads
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadRequest'
+        required: true
+      security:
+      - oauth2:
+        - user:write
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadAccepted'
+              examples:
+                202Accepted(sampleResponse):
+                  value:
+                    job_id: a4d2b960-e6c2-4956-abff-048e57482932
+                    status: queued
+                    detail: Accepted. Processing has been scheduled.
+                    job_url: http://localhost:8000/api/dashboard/jobs/a4d2b960-e6c2-4956-abff-048e57482932/
+                  summary: 202 Accepted (sample response)
+          description: ''
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+  /api/dashboard/v1/user/:
+    get:
+      operationId: Users_List
+      description: |-
+        Return users scoped to the current instance in the base user shape.
+
+        Filtering and search notes:
+        - search: free-text across first/last/username/email/company/role, custom_associated_id, sis_id, lms_id.
+        - first_name/last_name/username: exact match filters.
+        - pii_opt_out: presence filter — true = not null, false = null.
+        Pagination via page and page_size.
+      summary: List Users
+      parameters:
+      - in: query
+        name: first_name
+        schema:
+          type: string
+        description: 'Exact match on first_name. Example: first_name=Ada'
+      - in: query
+        name: last_name
+        schema:
+          type: string
+        description: 'Exact match on last_name. Example: last_name=Lovelace'
+      - in: query
+        name: page
+        schema:
+          type: integer
+        description: 1-based page index
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+        description: Number of results per page
+      - in: query
+        name: pii_opt_out
+        schema:
+          type: string
+        description: 'Presence flag: true = pii_opt_out IS NOT NULL; false = pii_opt_out
+          IS NULL'
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: 'Free-text search across common user fields (names, username,
+          email, company, role, custom_associated_id, sis_id, lms_id). Examples: search=ada,
+          search=LMS-1001'
+      - in: query
+        name: username
+        schema:
+          type: string
+        description: 'Exact match on username. Example: username=alovelace'
+      tags:
+      - Users
+      security:
+      - oauth2:
+        - user:read
+        - user:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserBaseList'
+          description: Paginated list of users in base shape
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '429':
+          description: Too Many Requests
+    post:
+      operationId: Users_Create
+      description: |-
+        Create one or many users in a single request.
+
+        Request options:
+        - Single: send a single user object (base shape).
+        - Bulk: send an object with items: [user_object_1, user_object_2 ...].
+        - on_conflict (optional): error | ignore | update — applies to bulk only.
+
+        Identifier & constraints:
+        - lms_id is required on create.
+        - Other fields are optional.
+
+        Behavior by on_conflict:
+        - error (default): duplicate lms_id within your instance → per-item 409.
+        - ignore: duplicate → per-item 200 with detail="ignored (exists)".
+        - update: duplicate → per-item 200 and updates only provided, non-identifier fields.
+      summary: Create Users (single or bulk)
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+            examples:
+              SingleCreate:
+                value:
+                  first_name: Grace
+                  last_name: Hopper
+                  username: ghopper
+                  role: instructor
+                  email: grace@uni.edu
+                  lms_id: LMS-7001
+                summary: Create One User
+              BulkCreateWithOnConflict:
+                value:
+                  on_conflict: update
+                  items:
+                  - first_name: Ada
+                    last_name: Lovelace
+                    lms_id: LMS-9001
+                  - first_name: Alan
+                    last_name: Turing
+                    lms_id: LMS-9002
+                  - email: ada-new@uni.edu
+                    lms_id: LMS-9001
+                summary: Create Multiple Users
+          application/vnd.qwickly.bulk+json:
+            schema:
+              $ref: '#/components/schemas/UserBulkCreateRequest'
+        required: true
+      security:
+      - oauth2:
+        - user:write
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserBase'
+              examples:
+                201Created—SingleUser:
+                  value:
+                    id: 101
+                    first_name: Grace
+                    last_name: Hopper
+                    username: ghopper
+                    other_name: null
+                    role: instructor
+                    email: grace@uni.edu
+                    company: Uni
+                    phone_number: '+15551234567'
+                    custom_associated_id: CUST-01
+                    sis_id: SIS-001
+                    lms_id: LMS-7001
+                    pii_opt_out: null
+                    date_last_synced: null
+                  summary: Successful single create response
+                  description: Response body returned when a single user is created
+                    successfully.
+          description: Created (single item). Returned body is the user in base shape.
+        '207':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserBulkCreateMultiStatusResponse'
+              examples:
+                207Multi-Status—BulkCreate:
+                  value:
+                    results:
+                    - index: 0
+                      status: 201
+                      id: 201
+                      detail: created
+                    - index: 1
+                      status: 201
+                      id: 202
+                      detail: created
+                    - index: 2
+                      status: 409
+                      detail: duplicate
+                  summary: Bulk create per-item results
+                  description: Response body returned when using bulk create. Each
+                    item includes index, status, id and optional detail/updated_fields.
+          description: 'Multi-Status (bulk). Returned body shape: {"results": [{"index":
+            int, "status": int, "id": int, "detail": str, "updated_fields"?: [str,
+            ...]}]}'
+    patch:
+      operationId: dashboard_v1_user_partial_update
+      description: |-
+        Patch multiple users at once in a single transaction. Each list item must include
+        user: { user_identifier: 'id|lms_id|sis_id|custom_associated_id', value: '...' } along with fields to update.
+
+        Notes:
+        - Only provided fields are updated; others remain unchanged.
+        - Response is 207 Multi-Status with per-item results and updated_fields.
+      summary: Bulk Partial Update
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUserBulkPatchItem'
+            examples:
+              BulkPatch:
+                value:
+                - user:
+                    user_identifier: lms_id
+                    value: LMS-9001
+                  role: instructor
+                  company: Uni
+                - user:
+                    user_identifier: sis_id
+                    value: SIS-002
+                  first_name: Alan
+                  last_name: Turing
+                  username: aturing
+                summary: Bulk patch
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUserBulkPatchItem'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUserBulkPatchItem'
+      security:
+      - oauth2:
+        - user:write
+      responses:
+        '207':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserBulkPatchMultiStatusResponse'
+              examples:
+                207Multi-Status—BulkPatch:
+                  value:
+                    results:
+                    - user:
+                        user_identifier: lms_id
+                        value: LMS-9001
+                      status: 200
+                      detail: updated
+                      updated_fields:
+                      - role
+                      - company
+                    - user:
+                        user_identifier: sis_id
+                        value: SIS-002
+                      status: 404
+                      detail: User not found.
+                  summary: Per-item results for bulk patch
+                  description: Each item includes the user identification object,
+                    status, optional detail, and updated_fields when applicable.
+          description: 'Multi-Status (bulk). Returned body shape: {"results": [{"user":
+            {"user_identifier": str, "value": str|int}, "status": int, "detail": str,
+            "updated_fields"?: [str, ...]}]}'
+  /api/dashboard/v1/user-group/:
+    get:
+      operationId: dashboard_v1_user_group_list
+      description: |-
+        Gives views a consistent way to get the instance from the Bearer token,
+        and inject it into serializer context.
+      summary: List user groups
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - User Groups
+      security:
+      - oauth2:
+        - user-group:read
+      - oauth2:
+        - user-group:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserGroupingList'
+          description: Array of user groups for the current instance.
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '429':
+          description: Too Many Requests (throttled)
+    post:
+      operationId: dashboard_v1_user_group_create
+      description: |-
+        Gives views a consistent way to get the instance from the Bearer token,
+        and inject it into serializer context.
+      summary: Create one or many user groups
+      tags:
+      - User Groups
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserGrouping'
+            examples:
+              SingleCreate:
+                value:
+                  name: Advising Cohort A
+                  description: Optional description
+                summary: Create one group
+              BulkCreate:
+                value:
+                - name: Advising Cohort A
+                - name: Advising Cohort B
+                  description: STEM students
+                summary: Create multiple groups
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserGrouping'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserGrouping'
+        required: true
+      security:
+      - oauth2:
+        - user-group:write
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserGroupingList'
+              examples:
+                201Created—BulkCreateResponse:
+                  value:
+                    count: 123
+                    next: http://api.example.org/accounts/?page=4
+                    previous: http://api.example.org/accounts/?page=2
+                    results:
+                    - - id: 101
+                        name: Advising Cohort A
+                        description: null
+                        user_count: 0
+                      - id: 102
+                        name: Advising Cohort B
+                        description: STEM students
+                        user_count: 0
+                  summary: Successful bulk create returns an array of created groups
+                  description: Even for bulk requests, the response is a 201 with
+                    an array of the created groups in base shape.
+          description: Created group(s). If a single object was sent, response will
+            still be an array of length 1.
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '429':
+          description: Too Many Requests (throttled)
+  /api/dashboard/v1/user-group/{id}/:
+    get:
+      operationId: dashboard_v1_user_group_retrieve
+      description: |-
+        Gives views a consistent way to get the instance from the Bearer token,
+        and inject it into serializer context.
+      summary: Retrieve a user group
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: pk
+        schema:
+          type: integer
+        description: User group id
+        required: true
+      tags:
+      - User Groups
+      security:
+      - oauth2:
+        - user-group:read
+      - oauth2:
+        - user-group:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserGrouping'
+          description: User group detail
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '404':
+          description: Not found
+        '429':
+          description: Too Many Requests (throttled)
+    put:
+      operationId: dashboard_v1_user_group_update
+      description: |-
+        Gives views a consistent way to get the instance from the Bearer token,
+        and inject it into serializer context.
+      summary: Update a user group
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: pk
+        schema:
+          type: integer
+        description: User group id
+        required: true
+      tags:
+      - User Groups
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserGrouping'
+            examples:
+              PUTBody:
+                value:
+                  name: Advising Cohort A (Updated)
+                  description: Updated description
+                summary: PUT body
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserGrouping'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserGrouping'
+        required: true
+      security:
+      - oauth2:
+        - user-group:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserGrouping'
+          description: Updated group
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '404':
+          description: Not found
+        '429':
+          description: Too Many Requests (throttled)
+    patch:
+      operationId: dashboard_v1_user_group_partial_update
+      description: |-
+        Gives views a consistent way to get the instance from the Bearer token,
+        and inject it into serializer context.
+      summary: Partially update a user group
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: pk
+        schema:
+          type: integer
+        description: User group id
+        required: true
+      tags:
+      - User Groups
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUserGrouping'
+            examples:
+              PATCHBody(renameOnly):
+                value:
+                  name: Advising Cohort A (Renamed)
+                summary: PATCH body (rename only)
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUserGrouping'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUserGrouping'
+      security:
+      - oauth2:
+        - user-group:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserGrouping'
+          description: Updated group
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '404':
+          description: Not found
+        '429':
+          description: Too Many Requests (throttled)
+    delete:
+      operationId: dashboard_v1_user_group_destroy
+      description: |-
+        Gives views a consistent way to get the instance from the Bearer token,
+        and inject it into serializer context.
+      summary: Delete a user group
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: pk
+        schema:
+          type: integer
+        description: User group id
+        required: true
+      tags:
+      - User Groups
+      security:
+      - oauth2:
+        - user-group:write
+      responses:
+        '204':
+          description: Deleted successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '404':
+          description: Not found
+        '429':
+          description: Too Many Requests (throttled)
+  /api/dashboard/v1/user-group/{user_group_id}/users/:
+    get:
+      operationId: dashboard_v1_user_group_users_list
+      description: |-
+        Gives views a consistent way to get the instance from the Bearer token,
+        and inject it into serializer context.
+      summary: List users in a group
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: path
+        name: user_group_id
+        schema:
+          type: integer
+        description: User group id
+        required: true
+      tags:
+      - User Groups
+      security:
+      - oauth2:
+        - user-group:read
+      - oauth2:
+        - user-group:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserGroupUserList'
+          description: Users in the specified group
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '404':
+          description: Not found
+        '429':
+          description: Too Many Requests (throttled)
+    post:
+      operationId: dashboard_v1_user_group_users_create
+      description: |-
+        Gives views a consistent way to get the instance from the Bearer token,
+        and inject it into serializer context.
+      summary: Add one or many users to a group
+      parameters:
+      - in: path
+        name: user_group_id
+        schema:
+          type: integer
+        description: User group id
+        required: true
+      tags:
+      - User Groups
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddUserToGroup'
+            examples:
+              Single:ByPK:
+                value:
+                  identifier_type: id
+                  user_identifier: '123'
+                summary: Add one user to a group
+              Batch:MultipleItems:
+                value:
+                - identifier_type: lms_id
+                  user_identifier: u12345
+                - identifier_type: lms_id
+                  user_identifier: u12346
+                summary: Add multiple users to a group
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AddUserToGroup'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AddUserToGroup'
+        required: true
+      security:
+      - oauth2:
+        - user-group:write
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserGroupUserList'
+              examples:
+                201Created—SingleAddResponse:
+                  value:
+                    count: 123
+                    next: http://api.example.org/accounts/?page=4
+                    previous: http://api.example.org/accounts/?page=2
+                    results:
+                    - id: 321
+                      lms_id: u12345
+                      student_id: S12345
+                      external_id: null
+                      custom_associated_id: CUST-01
+                      username: ada.lovelace
+                      email: ada@example.edu
+                  summary: Successful single add returns the added user object
+                  description: When a single user is added, the response is a single
+                    user object in base shape for group membership.
+                201Created—BulkAddResponse:
+                  value:
+                    count: 123
+                    next: http://api.example.org/accounts/?page=4
+                    previous: http://api.example.org/accounts/?page=2
+                    results:
+                    - - id: 321
+                        lms_id: u12345
+                        student_id: S12345
+                        external_id: null
+                        custom_associated_id: CUST-01
+                        username: ada.lovelace
+                        email: ada@example.edu
+                      - id: 322
+                        lms_id: u12346
+                        student_id: null
+                        external_id: null
+                        custom_associated_id: null
+                        username: alan.turing
+                        email: alan@example.edu
+                  summary: Successful bulk add returns an array of users
+                  description: When sending an array, the response is a 201 with an
+                    array of the added users in base shape.
+          description: Added user(s). If a single object was sent, response may be
+            a single object.
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '404':
+          description: Not found
+        '429':
+          description: Too Many Requests (throttled)
+  /api/dashboard/v1/user-group/{user_group_id}/users/{user_identifier}/:
+    get:
+      operationId: dashboard_v1_user_group_users_retrieve
+      description: |-
+        Gives views a consistent way to get the instance from the Bearer token,
+        and inject it into serializer context.
+      summary: Retrieve a user in a group
+      parameters:
+      - in: path
+        name: user_group_id
+        schema:
+          type: integer
+        description: User group id
+        required: true
+      - in: path
+        name: user_identifier
+        schema:
+          type: string
+        description: 'Accepts: user pk (id) or a prefixed non-primary identifier:
+          lms_id:{value}, student_id:{value}, external_id:{value}, custom_associated_id:{value}'
+        required: true
+        examples:
+          ByPK:
+            value: '123'
+            summary: Lookup by internal user id (pk)
+          ByLMSID:
+            value: lms_id:u12345
+            summary: Lookup by LMS user id
+          ByStudentID:
+            value: student_id:S1234567
+            summary: Lookup by SIS/Student ID
+          ByExternalID:
+            value: external_id:EXT-7788
+            summary: Lookup by externalId
+          ByCustomAssociatedID:
+            value: custom_associated_id:CUST-5566
+            summary: Lookup by custom_associated_id
+      tags:
+      - User Groups
+      security:
+      - oauth2:
+        - user-group:read
+      - oauth2:
+        - user-group:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserGroupUser'
+          description: User in the group
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '404':
+          description: Not found
+        '429':
+          description: Too Many Requests (throttled)
+    delete:
+      operationId: dashboard_v1_user_group_users_destroy
+      description: |-
+        Gives views a consistent way to get the instance from the Bearer token,
+        and inject it into serializer context.
+      summary: Remove a user from a group
+      parameters:
+      - in: path
+        name: user_group_id
+        schema:
+          type: integer
+        description: User group id
+        required: true
+      - in: path
+        name: user_identifier
+        schema:
+          type: string
+        description: 'Accepts: user pk (id) or a prefixed non-primary identifier:
+          lms_id:{value}, student_id:{value}, external_id:{value}, custom_associated_id:{value}'
+        required: true
+        examples:
+          ByPK:
+            value: '123'
+            summary: Lookup by internal user id (pk)
+          ByLMSID:
+            value: lms_id:u12345
+            summary: Lookup by LMS user id
+          ByStudentID:
+            value: student_id:S1234567
+            summary: Lookup by SIS/Student ID
+          ByExternalID:
+            value: external_id:EXT-7788
+            summary: Lookup by externalId
+          ByCustomAssociatedID:
+            value: custom_associated_id:CUST-5566
+            summary: Lookup by custom_associated_id
+      tags:
+      - User Groups
+      security:
+      - oauth2:
+        - user-group:write
+      responses:
+        '204':
+          description: Removed successfully (idempotent).
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (scope or license check failed)
+        '404':
+          description: Not found
+        '429':
+          description: Too Many Requests (throttled)
+  /api/dashboard/v1/user/{user_identifier}/:
+    get:
+      operationId: Users_Detail
+      description: |-
+        Gives views a consistent way to get the instance from the Bearer token,
+        and inject it into serializer context.
+      summary: User Detail
+      parameters:
+      - in: path
+        name: user_identifier
+        schema:
+          type: string
+        description: 'Path identifier using the format {user_identifier}:{value}.
+          Supported prefixes: id (integer), lms_id (string), sis_id (string), custom_associated_id
+          (string). Examples: 123 or id:123, lms_id:LMS-9001, sis_id:SIS-001, custom_associated_id:CUST-001.'
+        required: true
+        examples:
+          ByID:
+            value: id:123 or 123
+            summary: Lookup by internal id (integer required)
+          ByLMSID:
+            value: lms_id:LMS-9001
+            summary: Lookup by LMS user id (string)
+          BySISID:
+            value: sis_id:SIS-001
+            summary: Lookup by SIS/Student ID (string)
+          ByCustomAssociatedID:
+            value: custom_associated_id:CUST-001
+            summary: Lookup by custom_associated_id (string)
+      tags:
+      - Users
+      security:
+      - oauth2:
+        - user:read
+        - user:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserBase'
+          description: User in base shape
+    put:
+      operationId: Users_Update
+      description: 'Replace user fields. Note: lms_id is immutable and any provided
+        value will be ignored during update.'
+      summary: Full Update (Single User)
+      parameters:
+      - in: path
+        name: user_identifier
+        schema:
+          type: string
+        description: 'Path identifier using the format {user_identifier}:{value}.
+          Supported prefixes: id (integer), lms_id (string), sis_id (string), custom_associated_id
+          (string). Examples: 123 or id:123, lms_id:LMS-9001, sis_id:SIS-001, custom_associated_id:CUST-001.'
+        required: true
+        examples:
+          ByID:
+            value: id:123 or 123
+            summary: Lookup by internal id (integer required)
+          ByLMSID:
+            value: lms_id:LMS-9001
+            summary: Lookup by LMS user id (string)
+          BySISID:
+            value: sis_id:SIS-001
+            summary: Lookup by SIS/Student ID (string)
+          ByCustomAssociatedID:
+            value: custom_associated_id:CUST-001
+            summary: Lookup by custom_associated_id (string)
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+            examples:
+              FullUpdateBody:
+                value:
+                  first_name: Grace
+                  last_name: Hopper
+                  username: ghopper
+                  role: instructor
+                  email: grace@uni.edu
+                  company: Uni
+                  custom_associated_id: CUST-01
+                  sis_id: SIS-001
+                  phone_number: '+15551234567'
+                summary: Full update body
+              FullUpdateBody(lmsIdIgnored):
+                value:
+                  first_name: Grace
+                  last_name: Hopper
+                  email: grace.hopper@uni.edu
+                  lms_id: SHOULD-NOT-CHANGE
+                summary: lms_id will be ignored if provided
+                description: Demonstrates that lms_id in the request is ignored on
+                  update and will not change the user's lms_id.
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      security:
+      - oauth2:
+        - user:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserBase'
+              examples:
+                200OK—UpdatedUser:
+                  value:
+                    id: 101
+                    first_name: Grace
+                    last_name: Hopper
+                    username: ghopper
+                    other_name: null
+                    role: instructor
+                    email: grace.hopper@uni.edu
+                    company: Uni
+                    phone_number: '+15551234567'
+                    custom_associated_id: CUST-01
+                    sis_id: SIS-001
+                    lms_id: LMS-7001
+                    pii_opt_out: null
+                    date_last_synced: null
+                  summary: Successful update response
+                  description: Response body returned when a user is updated successfully.
+          description: Updated user (full)
+    patch:
+      operationId: Users_Partial_Update
+      description: 'Patch user fields. Note: lms_id is immutable and any provided
+        value will be ignored during update.'
+      summary: Partial Update (Single User)
+      parameters:
+      - in: path
+        name: user_identifier
+        schema:
+          type: string
+        description: 'Path identifier using the format {user_identifier}:{value}.
+          Supported prefixes: id (integer), lms_id (string), sis_id (string), custom_associated_id
+          (string). Examples: 123 or id:123, lms_id:LMS-9001, sis_id:SIS-001, custom_associated_id:CUST-001.'
+        required: true
+        examples:
+          ByID:
+            value: id:123 or 123
+            summary: Lookup by internal id (integer required)
+          ByLMSID:
+            value: lms_id:LMS-9001
+            summary: Lookup by LMS user id (string)
+          BySISID:
+            value: sis_id:SIS-001
+            summary: Lookup by SIS/Student ID (string)
+          ByCustomAssociatedID:
+            value: custom_associated_id:CUST-001
+            summary: Lookup by custom_associated_id (string)
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUserUpdateRequest'
+            examples:
+              PartialUpdateBody:
+                value:
+                  email: updated-grace@uni.edu
+                  company: Updated Uni
+                  phone_number: '+15559876543'
+                summary: Partial update body
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUserUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUserUpdateRequest'
+      security:
+      - oauth2:
+        - user:write
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserBase'
+              examples:
+                200OK—PartialUpdate:
+                  value:
+                    id: 101
+                    first_name: Grace
+                    last_name: Hopper
+                    username: ghopper
+                    other_name: null
+                    role: instructor
+                    email: updated-grace@uni.edu
+                    company: Updated Uni
+                    phone_number: '+15559876543'
+                    custom_associated_id: CUST-01
+                    sis_id: SIS-001
+                    lms_id: LMS-7001
+                    pii_opt_out: null
+                    date_last_synced: null
+                  summary: Successful partial update response
+                  description: Response body returned when a user is partially updated
+                    successfully.
+          description: Updated user (partial)
+    delete:
+      operationId: Users_Delete
+      description: Delete a single user resolved by the path identifier. Operation
+        is scoped to your instance.
+      summary: Delete User (Single)
+      parameters:
+      - in: path
+        name: user_identifier
+        schema:
+          type: string
+        description: 'Path identifier using the format {user_identifier}:{value}.
+          Supported prefixes: id (integer), lms_id (string), sis_id (string), custom_associated_id
+          (string). Examples: 123 or id:123, lms_id:LMS-9001, sis_id:SIS-001, custom_associated_id:CUST-001.'
+        required: true
+        examples:
+          ByID:
+            value: id:123 or 123
+            summary: Lookup by internal id (integer required)
+          ByLMSID:
+            value: lms_id:LMS-9001
+            summary: Lookup by LMS user id (string)
+          BySISID:
+            value: sis_id:SIS-001
+            summary: Lookup by SIS/Student ID (string)
+          ByCustomAssociatedID:
+            value: custom_associated_id:CUST-001
+            summary: Lookup by custom_associated_id (string)
+      tags:
+      - Users
+      security:
+      - oauth2:
+        - user:write
+      responses:
+        '204':
+          description: Deleted successfully
+components:
+  schemas:
+    AbsenceBasedGradingUpdate:
+      type: object
+      properties:
+        column_name:
+          type: string
+          nullable: true
+        total_points:
+          type: number
+          format: double
+        points_per_absence:
+          type: number
+          format: double
+        forgive_absences:
+          type: number
+          format: double
+        forgive_absences_method:
+          $ref: '#/components/schemas/ForgiveAbsencesMethodEnum'
+    AbsenceLimitItem:
+      type: object
+      properties:
+        limit:
+          type: integer
+        label:
+          type: string
+          nullable: true
+        email_template:
+          type: string
+          nullable: true
+    AbsenceLimitItemResponse:
+      type: object
+      properties:
+        limit:
+          type: integer
+        label:
+          type: string
+          nullable: true
+        email_template:
+          type: string
+          nullable: true
+        is_limit_readonly:
+          type: boolean
+          description: If true, then instructors cannot edit the absence limit at
+            course level. Controlled only by Admin Settings.
+        is_label_readonly:
+          type: boolean
+          description: If true, then instructors cannot edit the absence label at
+            course level. Controlled only by Admin Settings.
+        is_email_template_readonly:
+          type: boolean
+          description: If true, then instructors cannot edit the absence email template
+            at course level. Controlled only by Admin Settings.
+      required:
+      - email_template
+      - is_email_template_readonly
+      - is_label_readonly
+      - is_limit_readonly
+      - label
+      - limit
+    AddUserToGroup:
+      type: object
+      description: |-
+        Schema-only serializer used for OpenAPI and request shape validation.
+        All resolution and persistence is handled in the view via GroupUserResolveMixin.
+      properties:
+        identifier_type:
+          $ref: '#/components/schemas/IdentifierTypeEnum'
+        user_identifier:
+          type: string
+      required:
+      - identifier_type
+      - user_identifier
+    AttendanceStatus:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        color:
+          type: string
+          maxLength: 10
+        points:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          nullable: true
+        absence:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          nullable: true
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        default:
+          type: boolean
+        identifier:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+      required:
+      - color
+      - id
+      - name
+      - order
+    Building:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        custom_fields:
+          nullable: true
+          description: 'JSON object for custom metadata. Example: {"wheelchairAccessible":
+            "Yes"}'
+        name:
+          type: string
+          maxLength: 255
+        address:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+          maxLength: 100
+        state_province:
+          type: string
+          nullable: true
+          maxLength: 100
+        zip_code:
+          type: string
+          nullable: true
+          maxLength: 20
+        number_of_floors:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        building_type:
+          type: string
+          nullable: true
+          maxLength: 50
+        active_status:
+          type: boolean
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        gps_radius:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        campus:
+          type: integer
+          readOnly: true
+      required:
+      - campus
+      - id
+      - name
+    BulkOperationResult:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/BulkResultItem'
+      required:
+      - results
+    BulkResultItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+        detail:
+          type: string
+          nullable: true
+      required:
+      - status
+    Campus:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        custom_fields:
+          nullable: true
+          description: 'JSON object for custom metadata. Example: {"wheelchairAccessible":
+            "Yes"}'
+        name:
+          type: string
+          maxLength: 255
+        address:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+          maxLength: 100
+        state_province:
+          type: string
+          nullable: true
+          maxLength: 100
+        zip_code:
+          type: string
+          nullable: true
+          maxLength: 20
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        gps_radius:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        active_status:
+          type: boolean
+      required:
+      - id
+      - name
+    CheckInUpdate:
+      type: object
+      properties:
+        check_in_pin_requirement:
+          type: boolean
+        check_in_qr_mode:
+          type: boolean
+        check_in_timer:
+          type: integer
+    ClientCredentialsTokenRequest:
+      type: object
+      properties:
+        grant_type:
+          $ref: '#/components/schemas/GrantTypeEnum'
+        client_id:
+          type: string
+        client_secret:
+          type: string
+      required:
+      - client_id
+      - client_secret
+      - grant_type
+    Course:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        lms_id:
+          type: string
+          readOnly: true
+        name:
+          type: string
+          nullable: true
+        code:
+          type: string
+          nullable: true
+        sis_id:
+          type: string
+          readOnly: true
+        semester:
+          type: string
+          readOnly: true
+          description: Name of the semester. For POST/PUT/PATCH requests, you may
+            provide either the semester name or the semester code in the request body.
+            Responses always return the semester name.
+        instructors:
+          type: array
+          items:
+            $ref: '#/components/schemas/Instructor'
+          readOnly: true
+        room_ids:
+          type: array
+          items:
+            type: integer
+          description: List of room IDs associated with the course.
+        large_course_enrollment:
+          type: string
+          readOnly: true
+        course_statistics:
+          allOf:
+          - $ref: '#/components/schemas/CourseStatistics'
+          readOnly: true
+        settings:
+          allOf:
+          - $ref: '#/components/schemas/CourseSettings'
+          readOnly: true
+        location:
+          allOf:
+          - $ref: '#/components/schemas/CourseLocation'
+          readOnly: true
+          description: 'Note: Use room_ids instead. This field is only available for
+            legacy location users.'
+        nfc_data:
+          allOf:
+          - $ref: '#/components/schemas/CourseNFCData'
+          readOnly: true
+          description: 'Note: Use room_ids instead. This field is only available for
+            legacy location users.'
+        course_enrollments:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserBase'
+          readOnly: true
+      required:
+      - course_enrollments
+      - course_statistics
+      - id
+      - instructors
+      - large_course_enrollment
+      - lms_id
+      - location
+      - nfc_data
+      - semester
+      - settings
+      - sis_id
+    CourseBulkCreateMultiStatusResponse:
+      type: object
+      description: |-
+        207 Multi-Status response body for bulk course create.
+        { "results": [CourseBulkCreateResultItemSerializer, ...] }
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CourseBulkCreateResultItem'
+      required:
+      - results
+    CourseBulkCreateRequest:
+      type: object
+      properties:
+        on_conflict:
+          $ref: '#/components/schemas/OnConflict007Enum'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CourseCreateRequest'
+      required:
+      - items
+    CourseBulkCreateResultItem:
+      type: object
+      description: |-
+        Represents one result item in the 207 response for bulk POST /course/.
+        Mirrors the runtime structure built in views_course.CourseListView.post().
+      properties:
+        status:
+          type: integer
+        id:
+          type: integer
+        detail: {}
+      required:
+      - status
+    CourseCreateRequest:
+      type: object
+      properties:
+        lms_id:
+          type: string
+        name:
+          type: string
+          nullable: true
+        code:
+          type: string
+          nullable: true
+        sis_id:
+          type: string
+          nullable: true
+        semester:
+          type: string
+          nullable: true
+          description: Accepts either the semester name or the semester code. If provided
+            and matched, the course will be linked to that semester. Responses always
+            include the semester name.
+        instructors:
+          type: array
+          items:
+            $ref: '#/components/schemas/InstructorIdentifier'
+        room_ids:
+          type: array
+          items:
+            type: integer
+        large_course_enrollment:
+          type: boolean
+        settings:
+          $ref: '#/components/schemas/CourseSettingsUpdate'
+        location:
+          $ref: '#/components/schemas/CourseLocation'
+        nfc_data:
+          $ref: '#/components/schemas/CourseNFCData'
+      required:
+      - lms_id
+    CourseGroup:
+      type: object
+      description: Serializer for CourseGrouping model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 50
+        description:
+          type: string
+          nullable: true
+          maxLength: 150
+        course_code_pattern:
+          type: string
+          nullable: true
+          maxLength: 100
+        type:
+          type: string
+          nullable: true
+          maxLength: 20
+        course_count:
+          type: string
+          readOnly: true
+      required:
+      - course_count
+      - id
+      - name
+    CourseGroupBulkCreateMultiStatusResponse:
+      type: object
+      description: |-
+        207 Multi-Status response body for bulk course-group create.
+        { "results": [CourseGroupBulkCreateResultItemSerializer, ...] }
+        Documentation-only.
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CourseGroupBulkCreateResultItem'
+      required:
+      - results
+    CourseGroupBulkCreateResultItem:
+      type: object
+      description: |-
+        Represents one result item in a hypothetical 207 response for bulk POST /course-group/.
+        Documentation-only to display per-item statuses in Redoc.
+      properties:
+        index:
+          type: integer
+        status:
+          type: integer
+        id:
+          type: integer
+        detail:
+          type: string
+          nullable: true
+      required:
+      - status
+    CourseGroupCreateUpdate:
+      type: object
+      description: Create/Update CourseGrouping (single) + supports bulk via CourseGroupListSerializer.
+      properties:
+        name:
+          type: string
+          maxLength: 50
+        description:
+          type: string
+          nullable: true
+          maxLength: 150
+        course_code_pattern:
+          type: string
+          nullable: true
+          maxLength: 100
+        type:
+          type: string
+          nullable: true
+          maxLength: 20
+      required:
+      - name
+    CourseGroupDetail:
+      type: object
+      description: Detailed serializer for CourseGrouping model including courses
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 50
+        description:
+          type: string
+          nullable: true
+          maxLength: 150
+        course_code_pattern:
+          type: string
+          nullable: true
+          maxLength: 100
+        type:
+          type: string
+          nullable: true
+          maxLength: 20
+        courses:
+          type: array
+          items:
+            $ref: '#/components/schemas/CourseInGroup'
+          readOnly: true
+        course_count:
+          type: string
+          readOnly: true
+      required:
+      - course_count
+      - courses
+      - id
+      - name
+    CourseInGroup:
+      type: object
+      description: Serializer for Course objects within a CourseGrouping
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          nullable: true
+          maxLength: 255
+        courseId:
+          type: string
+          maxLength: 50
+        code:
+          type: string
+          nullable: true
+          maxLength: 50
+      required:
+      - courseId
+      - id
+    CourseLocation:
+      type: object
+      properties:
+        room_name:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          format: double
+          nullable: true
+        longitude:
+          type: number
+          format: double
+          nullable: true
+        radius:
+          type: integer
+          nullable: true
+      required:
+      - latitude
+      - longitude
+      - radius
+      - room_name
+    CourseNFCData:
+      type: object
+      properties:
+        nfc:
+          nullable: true
+    CourseSettings:
+      type: object
+      properties:
+        student_grouping:
+          type: string
+        show_absence_on_take_attendance:
+          type: boolean
+        show_unavailable_disabled_students_in_record:
+          type: boolean
+        show_internal_notes_reporting:
+          type: boolean
+        grading:
+          type: string
+          readOnly: true
+        round_grades_to_whole_number:
+          type: boolean
+        check_in:
+          type: string
+          readOnly: true
+        absence_limits:
+          type: array
+          items:
+            $ref: '#/components/schemas/AbsenceLimitItemResponse'
+          readOnly: true
+        absence_email_onoff:
+          type: boolean
+        absence_message:
+          type: string
+          nullable: true
+        absence_email_threshold:
+          type: integer
+        attendance_record_display:
+          type: string
+        enable_location_context_in_course:
+          type: string
+          nullable: true
+        enable_location_confirmation_course:
+          type: string
+          readOnly: true
+        enable_nfc_tag_confirmation_course:
+          type: string
+          readOnly: true
+      required:
+      - absence_email_onoff
+      - absence_email_threshold
+      - absence_limits
+      - absence_message
+      - attendance_record_display
+      - check_in
+      - enable_location_confirmation_course
+      - enable_location_context_in_course
+      - enable_nfc_tag_confirmation_course
+      - grading
+      - round_grades_to_whole_number
+      - show_absence_on_take_attendance
+      - show_internal_notes_reporting
+      - show_unavailable_disabled_students_in_record
+      - student_grouping
+    CourseSettingsUpdate:
+      type: object
+      properties:
+        student_grouping:
+          type: string
+        grading:
+          $ref: '#/components/schemas/GradingUpdate'
+        check_in:
+          $ref: '#/components/schemas/CheckInUpdate'
+        absence_limits:
+          type: array
+          items:
+            $ref: '#/components/schemas/AbsenceLimitItem'
+        enable_location_confirmation_course:
+          type: boolean
+        enable_nfc_tag_confirmation_course:
+          type: boolean
+    CourseStatistics:
+      type: object
+      properties:
+        average_student_attended_percent:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+        average_student_absence:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+        first_date_of_attendance:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        last_date_of_attendance:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        average_percent_remote:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+      required:
+      - average_percent_remote
+      - average_student_absence
+      - average_student_attended_percent
+      - first_date_of_attendance
+      - last_date_of_attendance
+    CourseToGroup:
+      type: object
+      description: |-
+        Payload (single or list):
+          { "id_identifier": "course_code", "value": "CSE-101" }
+          { "id_identifier": "course_id", "value": "4983" }
+          { "id_identifier": "course_name", "value": "Intro to CS" }
+      properties:
+        id_identifier:
+          $ref: '#/components/schemas/IdIdentifierEnum'
+        value:
+          type: string
+      required:
+      - id_identifier
+      - value
+    CourseUpdateRequest:
+      type: object
+      properties:
+        lms_id:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        code:
+          type: string
+          nullable: true
+        sis_id:
+          type: string
+          nullable: true
+        semester:
+          type: string
+          nullable: true
+          description: Accepts either the semester name or the semester code. If provided
+            and matched, the course will be linked to that semester. Responses always
+            include the semester name.
+        instructors:
+          type: array
+          items:
+            $ref: '#/components/schemas/InstructorIdentifier'
+        room_ids:
+          type: array
+          items:
+            type: integer
+        large_course_enrollment:
+          type: boolean
+        settings:
+          $ref: '#/components/schemas/CourseSettingsUpdate'
+        location:
+          $ref: '#/components/schemas/CourseLocation'
+        nfc_data:
+          $ref: '#/components/schemas/CourseNFCData'
+    ForgiveAbsencesMethodEnum:
+      enum:
+      - exclude
+      type: string
+      description: '* `exclude` - exclude'
+    GradingMethodEnum:
+      enum:
+      - points_per_session
+      - total_points
+      type: string
+      description: |-
+        * `points_per_session` - points_per_session
+        * `total_points` - total_points
+    GradingUpdate:
+      type: object
+      properties:
+        session_based_grading:
+          $ref: '#/components/schemas/SessionBasedGradingUpdate'
+        absence_based_grading:
+          $ref: '#/components/schemas/AbsenceBasedGradingUpdate'
+    GrantTypeEnum:
+      enum:
+      - client_credentials
+      type: string
+      description: '* `client_credentials` - client_credentials'
+    IdIdentifierEnum:
+      enum:
+      - course_id
+      - course_code
+      - course_name
+      type: string
+      description: |-
+        * `course_id` - course_id
+        * `course_code` - course_code
+        * `course_name` - course_name
+    IdentifierTypeEnum:
+      enum:
+      - id
+      - lms_id
+      - student_id
+      - external_id
+      - custom_associated_id
+      type: string
+      description: |-
+        * `id` - id
+        * `lms_id` - lms_id
+        * `student_id` - student_id
+        * `external_id` - external_id
+        * `custom_associated_id` - custom_associated_id
+    Instructor:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+      required:
+      - email
+      - id
+      - name
+    InstructorIdentifier:
+      type: object
+      properties:
+        user_identifier:
+          $ref: '#/components/schemas/InstructorIdentifierUserIdentifierEnum'
+        value:
+          type: string
+      required:
+      - user_identifier
+      - value
+    InstructorIdentifierUserIdentifierEnum:
+      enum:
+      - id
+      - lms_id
+      - sis_id
+      type: string
+      description: |-
+        * `id` - id
+        * `lms_id` - lms_id
+        * `sis_id` - sis_id
+    LocationContextEnum:
+      enum:
+      - 0
+      - 1
+      - 2
+      type: integer
+      description: |-
+        * `0` - No Context
+        * `1` - In Person
+        * `2` - Remote
+    MethodEnum:
+      enum:
+      - mobile
+      - mobile-qr
+      type: string
+      description: |-
+        * `mobile` - Mobile
+        * `mobile-qr` - Qr
+    NullEnum:
+      enum:
+      - null
+    OnConflict007Enum:
+      enum:
+      - ignore
+      - update
+      type: string
+      description: |-
+        * `ignore` - ignore
+        * `update` - update
+    PaginatedAttendanceStatusList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttendanceStatus'
+    PaginatedBuildingList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Building'
+    PaginatedCampusList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Campus'
+    PaginatedCourseGroupList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CourseGroup'
+    PaginatedCourseInGroupList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CourseInGroup'
+    PaginatedCourseList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Course'
+    PaginatedRecordList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Record'
+    PaginatedRoomList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Room'
+    PaginatedSessionList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Session'
+    PaginatedUploadJobStatusList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/UploadJobStatus'
+    PaginatedUserBaseList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserBase'
+    PaginatedUserGroupUserList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserGroupUser'
+    PaginatedUserGroupingList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserGrouping'
+    PatchedBuilding:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        custom_fields:
+          nullable: true
+          description: 'JSON object for custom metadata. Example: {"wheelchairAccessible":
+            "Yes"}'
+        name:
+          type: string
+          maxLength: 255
+        address:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+          maxLength: 100
+        state_province:
+          type: string
+          nullable: true
+          maxLength: 100
+        zip_code:
+          type: string
+          nullable: true
+          maxLength: 20
+        number_of_floors:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        building_type:
+          type: string
+          nullable: true
+          maxLength: 50
+        active_status:
+          type: boolean
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        gps_radius:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        campus:
+          type: integer
+          readOnly: true
+    PatchedCampus:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        custom_fields:
+          nullable: true
+          description: 'JSON object for custom metadata. Example: {"wheelchairAccessible":
+            "Yes"}'
+        name:
+          type: string
+          maxLength: 255
+        address:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+          maxLength: 100
+        state_province:
+          type: string
+          nullable: true
+          maxLength: 100
+        zip_code:
+          type: string
+          nullable: true
+          maxLength: 20
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        gps_radius:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        active_status:
+          type: boolean
+    PatchedCourseGroupCreateUpdate:
+      type: object
+      description: Create/Update CourseGrouping (single) + supports bulk via CourseGroupListSerializer.
+      properties:
+        name:
+          type: string
+          maxLength: 50
+        description:
+          type: string
+          nullable: true
+          maxLength: 150
+        course_code_pattern:
+          type: string
+          nullable: true
+          maxLength: 100
+        type:
+          type: string
+          nullable: true
+          maxLength: 20
+    PatchedCourseUpdateRequest:
+      type: object
+      properties:
+        lms_id:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        code:
+          type: string
+          nullable: true
+        sis_id:
+          type: string
+          nullable: true
+        semester:
+          type: string
+          nullable: true
+          description: Accepts either the semester name or the semester code. If provided
+            and matched, the course will be linked to that semester. Responses always
+            include the semester name.
+        instructors:
+          type: array
+          items:
+            $ref: '#/components/schemas/InstructorIdentifier'
+        room_ids:
+          type: array
+          items:
+            type: integer
+        large_course_enrollment:
+          type: boolean
+        settings:
+          $ref: '#/components/schemas/CourseSettingsUpdate'
+        location:
+          $ref: '#/components/schemas/CourseLocation'
+        nfc_data:
+          $ref: '#/components/schemas/CourseNFCData'
+    PatchedRecordUpdateRequest:
+      type: object
+      properties:
+        status_id:
+          type: integer
+        comment:
+          type: string
+          nullable: true
+        make_comment_public:
+          type: boolean
+        location_context:
+          $ref: '#/components/schemas/LocationContextEnum'
+        is_updated:
+          type: boolean
+    PatchedRoom:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        custom_fields:
+          nullable: true
+          description: 'JSON object for custom metadata. Example: {"wheelchairAccessible":
+            "Yes"}'
+        seating_grid:
+          nullable: true
+          description: "\n        Structured layout for the room.\n        Example:\n
+            \       {\n            \"size\": {\"cols\": 10, \"rows\": 10},\n            \"chairs\":
+            [\n                {\"x\": 0, \"y\": 0, \"nfc_tag\": \"04A154B48F6180\"},\n
+            \               {\"x\": 1, \"y\": 0, \"nfc_tag\": \"04A154B48F6181\"}\n
+            \           ]\n        }\n        "
+        nfc_tags:
+          nullable: true
+          description: 'List of NFC tag ID strings associated with the room. Example:
+            ["04A154B48F6180", "04A154B48F6181"]'
+        floor:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        name_or_number:
+          type: string
+          maxLength: 100
+        room_type:
+          type: string
+          nullable: true
+          maxLength: 50
+        capacity:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        gps_radius:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        building:
+          type: integer
+          readOnly: true
+    PatchedSessionBulkPatchRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionPatchItemRequest'
+    PatchedSessionDetailPatchRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          nullable: true
+        start_time:
+          type: string
+          format: date-time
+    PatchedUserBulkPatchItem:
+      type: object
+      description: |-
+        Represents one item in the bulk PATCH payload for /dashboard/v1/user/.
+        Contains a required `user` identification object and any subset of updatable fields.
+      properties:
+        user:
+          $ref: '#/components/schemas/UserIdentifierRef'
+        first_name:
+          type: string
+          nullable: true
+        last_name:
+          type: string
+          nullable: true
+        username:
+          type: string
+          nullable: true
+        other_name:
+          type: string
+          nullable: true
+        role:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        company:
+          type: string
+          nullable: true
+        custom_associated_id:
+          type: string
+          nullable: true
+        sis_id:
+          type: string
+          nullable: true
+        phone_number:
+          type: string
+          nullable: true
+    PatchedUserGrouping:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 50
+        description:
+          type: string
+          nullable: true
+          maxLength: 150
+        user_count:
+          type: integer
+          readOnly: true
+    PatchedUserUpdateRequest:
+      type: object
+      description: |-
+        Schema-only serializer for single user updates (PUT/PATCH on /dashboard/v1/user/{user_identifier}/).
+        This intentionally omits lms_id to reflect that it is immutable and ignored on update.
+
+        Note: Runtime update still uses UserCreateUpdateSerializer; this class is for documentation only.
+      properties:
+        first_name:
+          type: string
+          nullable: true
+        last_name:
+          type: string
+          nullable: true
+        username:
+          type: string
+          nullable: true
+        other_name:
+          type: string
+          nullable: true
+        role:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        company:
+          type: string
+          nullable: true
+        custom_associated_id:
+          type: string
+          nullable: true
+        sis_id:
+          type: string
+          nullable: true
+        phone_number:
+          type: string
+          nullable: true
+    Record:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        parent_session:
+          type: integer
+          readOnly: true
+        user_id:
+          type: integer
+          readOnly: true
+        status_id:
+          type: integer
+          readOnly: true
+        comment:
+          type: string
+          nullable: true
+          maxLength: 255
+        make_comment_public:
+          type: boolean
+        time_created:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        time_last_edited:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        admin_edited:
+          type: boolean
+        ip_address:
+          type: string
+          nullable: true
+          maxLength: 100
+        location_context:
+          allOf:
+          - $ref: '#/components/schemas/LocationContextEnum'
+          minimum: -2147483648
+          maximum: 2147483647
+        is_updated:
+          type: boolean
+        mobile_data:
+          allOf:
+          - $ref: '#/components/schemas/RecordMobile'
+          readOnly: true
+      required:
+      - id
+      - mobile_data
+      - parent_session
+      - status_id
+      - time_created
+      - time_last_edited
+      - user_id
+    RecordCreateRequest:
+      type: object
+      properties:
+        user_identifier:
+          $ref: '#/components/schemas/UserIdentifier3e5Enum'
+        user_value:
+          type: string
+        status_id:
+          type: integer
+        comment:
+          type: string
+          nullable: true
+        make_comment_public:
+          type: boolean
+          default: false
+        location_context:
+          allOf:
+          - $ref: '#/components/schemas/LocationContextEnum'
+          default: 0
+      required:
+      - status_id
+      - user_identifier
+      - user_value
+    RecordMobile:
+      type: object
+      properties:
+        method:
+          $ref: '#/components/schemas/MethodEnum'
+        nfc_is_valid:
+          type: boolean
+          nullable: true
+        nfc_tag:
+          type: string
+          nullable: true
+          maxLength: 20
+        location_name:
+          type: string
+          nullable: true
+          maxLength: 255
+        zone_status:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/ZoneStatusEnum'
+          - $ref: '#/components/schemas/NullEnum'
+    RecordUpdateRequest:
+      type: object
+      properties:
+        status_id:
+          type: integer
+        comment:
+          type: string
+          nullable: true
+        make_comment_public:
+          type: boolean
+        location_context:
+          $ref: '#/components/schemas/LocationContextEnum'
+        is_updated:
+          type: boolean
+    Room:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        custom_fields:
+          nullable: true
+          description: 'JSON object for custom metadata. Example: {"wheelchairAccessible":
+            "Yes"}'
+        seating_grid:
+          nullable: true
+          description: "\n        Structured layout for the room.\n        Example:\n
+            \       {\n            \"size\": {\"cols\": 10, \"rows\": 10},\n            \"chairs\":
+            [\n                {\"x\": 0, \"y\": 0, \"nfc_tag\": \"04A154B48F6180\"},\n
+            \               {\"x\": 1, \"y\": 0, \"nfc_tag\": \"04A154B48F6181\"}\n
+            \           ]\n        }\n        "
+        nfc_tags:
+          nullable: true
+          description: 'List of NFC tag ID strings associated with the room. Example:
+            ["04A154B48F6180", "04A154B48F6181"]'
+        floor:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        name_or_number:
+          type: string
+          maxLength: 100
+        room_type:
+          type: string
+          nullable: true
+          maxLength: 50
+        capacity:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        gps_radius:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        building:
+          type: integer
+          readOnly: true
+      required:
+      - building
+      - id
+      - name_or_number
+    SelectedIdFieldEnum:
+      enum:
+      - lms_id
+      - sis_id
+      type: string
+      description: |-
+        * `lms_id` - lms_id
+        * `sis_id` - sis_id
+    Session:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          nullable: true
+          maxLength: 50
+        start_time:
+          type: string
+          format: date-time
+        method:
+          type: string
+          readOnly: true
+          nullable: true
+        started_by:
+          allOf:
+          - $ref: '#/components/schemas/StartedBy'
+          nullable: true
+          readOnly: true
+        is_pre_created:
+          type: boolean
+          readOnly: true
+        using_location_context:
+          type: boolean
+        using_location_confirmation:
+          type: boolean
+        using_nfc:
+          type: boolean
+          readOnly: true
+        group_id:
+          type: string
+          readOnly: true
+          nullable: true
+        section_id:
+          type: string
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        edited_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+      required:
+      - created_at
+      - edited_at
+      - group_id
+      - id
+      - is_pre_created
+      - method
+      - section_id
+      - start_time
+      - started_by
+      - using_nfc
+    SessionBasedGradingUpdate:
+      type: object
+      properties:
+        grading_method:
+          $ref: '#/components/schemas/GradingMethodEnum'
+        column_name:
+          type: string
+          nullable: true
+        points:
+          type: number
+          format: double
+    SessionBulkPutRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionPutItemRequest'
+      required:
+      - items
+    SessionCreateItemRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        start_time:
+          type: string
+          format: date-time
+      required:
+      - start_time
+      - title
+    SessionCreateRequest:
+      type: object
+      properties:
+        on_conflict:
+          $ref: '#/components/schemas/OnConflict007Enum'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionCreateItemRequest'
+        title:
+          type: string
+        start_time:
+          type: string
+          format: date-time
+      required:
+      - start_time
+      - title
+    SessionPatchItemRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+          nullable: true
+        start_time:
+          type: string
+          format: date-time
+      required:
+      - id
+    SessionPutItemRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        start_time:
+          type: string
+          format: date-time
+      required:
+      - id
+      - start_time
+      - title
+    SimpleStatusResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+      required:
+      - id
+      - status
+    StartedBy:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+      required:
+      - email
+      - id
+      - name
+    StatusEnum:
+      enum:
+      - queued
+      - pending
+      - processing
+      - completed
+      - failed
+      - canceled
+      type: string
+      description: |-
+        * `queued` - Queued
+        * `pending` - Pending
+        * `processing` - Processing
+        * `completed` - Completed
+        * `failed` - Failed
+        * `canceled` - Canceled
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          $ref: '#/components/schemas/TokenTypeEnum'
+        expires_in:
+          type: integer
+          description: seconds
+        scope:
+          type: string
+      required:
+      - access_token
+      - expires_in
+      - scope
+      - token_type
+    TokenTypeEnum:
+      enum:
+      - Bearer
+      type: string
+      description: '* `Bearer` - Bearer'
+    UploadAccepted:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        detail:
+          type: string
+        job_url:
+          type: string
+      required:
+      - detail
+      - job_id
+      - job_url
+      - status
+    UploadJobStatus:
+      type: object
+      properties:
+        upload_id:
+          type: string
+          format: uuid
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusEnum'
+          readOnly: true
+        selected_id_field:
+          type: string
+          readOnly: true
+        total_rows:
+          type: integer
+          readOnly: true
+        processed_rows:
+          type: integer
+          readOnly: true
+        error_rows:
+          type: integer
+          readOnly: true
+        summary:
+          type: string
+          readOnly: true
+          nullable: true
+        upload_target:
+          type: string
+          readOnly: true
+        original_filename:
+          type: string
+          readOnly: true
+        uploaded_by:
+          type: string
+          readOnly: true
+        instance_id:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        finished_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - error_rows
+      - finished_at
+      - instance_id
+      - original_filename
+      - processed_rows
+      - selected_id_field
+      - started_at
+      - status
+      - summary
+      - total_rows
+      - updated_at
+      - upload_id
+      - upload_target
+      - uploaded_by
+    UploadRequest:
+      type: object
+      properties:
+        file:
+          type: string
+          format: uri
+        selected_id_field:
+          $ref: '#/components/schemas/SelectedIdFieldEnum'
+      required:
+      - file
+      - selected_id_field
+    UserBase:
+      type: object
+      description: |-
+        Read serializer that flattens User + UserInformation into the documented base shape.
+        Non-existent fields (e.g., phone_number) will be returned as null per spec.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        first_name:
+          type: string
+          nullable: true
+        last_name:
+          type: string
+          nullable: true
+        username:
+          type: string
+          nullable: true
+        other_name:
+          type: string
+          nullable: true
+        role:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        company:
+          type: string
+          nullable: true
+        phone_number:
+          type: string
+          nullable: true
+        custom_associated_id:
+          type: string
+          nullable: true
+        sis_id:
+          type: string
+          nullable: true
+        lms_id:
+          type: string
+          nullable: true
+        pii_opt_out:
+          type: string
+          format: date-time
+          nullable: true
+        date_last_synced:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - id
+    UserBulkCreateMultiStatusResponse:
+      type: object
+      description: |-
+        207 Multi-Status response body for bulk user create.
+        { "results": [UserBulkCreateResultItemSerializer, ...] }
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserBulkCreateResultItem'
+      required:
+      - results
+    UserBulkCreateRequest:
+      type: object
+      description: |-
+        Request body for POST /dashboard/v1/user/ (bulk create).
+        Enforces that each item requires lms_id in the schema.
+      properties:
+        on_conflict:
+          $ref: '#/components/schemas/UserBulkCreateRequestOnConflictEnum'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserCreateRequest'
+      required:
+      - items
+    UserBulkCreateRequestOnConflictEnum:
+      enum:
+      - error
+      - ignore
+      - update
+      type: string
+      description: |-
+        * `error` - error
+        * `ignore` - ignore
+        * `update` - update
+    UserBulkCreateResultItem:
+      type: object
+      description: |-
+        Represents one result item in the 207 response for bulk POST /user/.
+        Mirrors the runtime structure built in views_user.UserListCreateUpdate.create().
+      properties:
+        index:
+          type: integer
+          description: Index of the item in request.items (0-based).
+        status:
+          type: integer
+        id:
+          type: integer
+        detail:
+          type: string
+          nullable: true
+        updated_fields:
+          type: array
+          items:
+            type: string
+          description: Present when on_conflict=update results in updates.
+      required:
+      - status
+    UserBulkPatchMultiStatusResponse:
+      type: object
+      description: |-
+        207 Multi-Status response body for bulk user patch.
+        { "results": [UserBulkPatchResultItemSerializer, ...] }
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserBulkPatchResultItem'
+      required:
+      - results
+    UserBulkPatchResultItem:
+      type: object
+      description: |-
+        Represents one result item in the 207 response for bulk PATCH /user/.
+        Mirrors the runtime structure built in views_user.UserListCreateUpdate.patch().
+      properties:
+        user:
+          $ref: '#/components/schemas/UserIdentifierRef'
+        status:
+          type: integer
+        detail:
+          type: string
+          nullable: true
+        updated_fields:
+          type: array
+          items:
+            type: string
+      required:
+      - status
+    UserCreateRequest:
+      type: object
+      description: |-
+        Request body for POST /dashboard/v1/user/ (single create).
+        This schema marks lms_id as required so docs accurately reflect requirements.
+      properties:
+        lms_id:
+          type: string
+        first_name:
+          type: string
+          nullable: true
+        last_name:
+          type: string
+          nullable: true
+        username:
+          type: string
+          nullable: true
+        other_name:
+          type: string
+          nullable: true
+        role:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        company:
+          type: string
+          nullable: true
+        custom_associated_id:
+          type: string
+          nullable: true
+        sis_id:
+          type: string
+          nullable: true
+        phone_number:
+          type: string
+          nullable: true
+      required:
+      - lms_id
+    UserGroupUser:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        lms_id:
+          type: string
+          readOnly: true
+        student_id:
+          type: string
+          readOnly: true
+        external_id:
+          type: string
+          readOnly: true
+        custom_associated_id:
+          type: string
+          readOnly: true
+          nullable: true
+        username:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          readOnly: true
+      required:
+      - custom_associated_id
+      - email
+      - external_id
+      - id
+      - lms_id
+      - student_id
+      - username
+    UserGrouping:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 50
+        description:
+          type: string
+          nullable: true
+          maxLength: 150
+        user_count:
+          type: integer
+          readOnly: true
+      required:
+      - id
+      - name
+      - user_count
+    UserIdentifier3e5Enum:
+      enum:
+      - id
+      - lms_id
+      - sis_id
+      - custom_associated_id
+      type: string
+      description: |-
+        * `id` - id
+        * `lms_id` - lms_id
+        * `sis_id` - sis_id
+        * `custom_associated_id` - custom_associated_id
+    UserIdentifierRef:
+      type: object
+      description: Identification object used in bulk PATCH payloads.
+      properties:
+        user_identifier:
+          $ref: '#/components/schemas/UserIdentifier3e5Enum'
+        value:
+          type: string
+          description: id must be an integer; lms_id/sis_id/custom_associated_id are
+            strings.
+      required:
+      - user_identifier
+      - value
+    UserUpdateRequest:
+      type: object
+      description: |-
+        Schema-only serializer for single user updates (PUT/PATCH on /dashboard/v1/user/{user_identifier}/).
+        This intentionally omits lms_id to reflect that it is immutable and ignored on update.
+
+        Note: Runtime update still uses UserCreateUpdateSerializer; this class is for documentation only.
+      properties:
+        first_name:
+          type: string
+          nullable: true
+        last_name:
+          type: string
+          nullable: true
+        username:
+          type: string
+          nullable: true
+        other_name:
+          type: string
+          nullable: true
+        role:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        company:
+          type: string
+          nullable: true
+        custom_associated_id:
+          type: string
+          nullable: true
+        sis_id:
+          type: string
+          nullable: true
+        phone_number:
+          type: string
+          nullable: true
+    ZoneStatusEnum:
+      enum:
+      - IN_ZONE
+      - OUT_OF_ZONE
+      - NOT_DETERMINED
+      type: string
+      description: |-
+        * `IN_ZONE` - In the Zone
+        * `OUT_OF_ZONE` - Out of the Zone
+        * `NOT_DETERMINED` - Can't Determine
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows: {}
