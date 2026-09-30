@@ -25,7 +25,7 @@ function showAlert(title: string, message: string, onOk?: () => void) {
 
 export default function ScanQRScreen() {
   const router = useRouter();
-  const { user, request } = useAuth();
+  const { user } = useAuth();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -68,41 +68,34 @@ export default function ScanQRScreen() {
     );
   }
 
-  async function handleBarCodeScanned({ data }: { data: string }) {
-    if (scanned || scanInFlight.current) return;
-    scanInFlight.current = true;
-    setScanned(true);
-    setLoading(true);
-
-    // The QR encodes the raw session_token string — pass it
-    // straight to the API along with the logged-in student's ID.
-    const studentId = user?.student;
-
-    if (!studentId) {
-      showAlert("Error", "No student ID found. Please log in again.", () =>
-        router.replace("/")
-      );
-      setLoading(false);
-      scanInFlight.current = false;
-      return;
-    }
-
-    try {
-      const res = await request("/sessions/scan", {
-        method: "POST",
-        body: JSON.stringify({ session_token: data }),
-      });
-
-      const body = await res.json();
-      showAlert("Attendance recorded", body.message || "Your attendance was recorded.", () => router.back());
-    } catch (err) {
-      
-      showAlert("Error", err instanceof Error ? err.message : "Unable to reach the server.", () => setScanned(false));
-    } finally {
-      scanInFlight.current = false;
-      setLoading(false);
-    }
+  async function handleBarCodeScanned({
+  data,
+}: {
+  data: string;
+}) {
+  if (
+    scanned ||
+    scanInFlight.current
+  ) {
+    return;
   }
+
+  scanInFlight.current = true;
+  setScanned(true);
+
+  console.log(
+    '[QR] Scanned payload:',
+    data
+  );
+
+  showAlert(
+    'QR Code Scanned',
+    `QR payload:\n\n${data}`,
+    () => setScanned(false)
+  );
+
+  scanInFlight.current = false;
+}
 
   return (
     <View style={styles.container}>

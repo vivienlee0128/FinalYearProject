@@ -31,21 +31,32 @@ interface MicrosoftIdTokenClaims {
   exp?: number;
 }
 
+// export interface AuthUser {
+//   name: string;
+//   email: string;
+
+//   /**
+//    * These are kept for compatibility with the rest
+//    * of your existing application.
+//    *
+//    * They will eventually come from your student
+//    * profile API / Qwickly integration.
+//    */
+//   student: string | null;
+//   sisId: string | null;
+
+//   role: 'student' | 'lecturer';
+//   method: 'microsoft';
+// }
+
 export interface AuthUser {
   name: string;
   email: string;
 
-  /**
-   * These are kept for compatibility with the rest
-   * of your existing application.
-   *
-   * They will eventually come from your student
-   * profile API / Qwickly integration.
-   */
-  student: string | null;
+  // Will eventually come from Student Profile API
+  studentId: string | null;
   sisId: string | null;
 
-  role: 'student' | 'lecturer';
   method: 'microsoft';
 }
 
@@ -124,62 +135,100 @@ function fromTokens(
  *
  * GET 192.168.100.25:6522/api/auth/me
  */
-function userFromToken(
-  tokens: TokenResponse
-): AuthUser {
-  if (!tokens.idToken) {
-    throw new Error(
-      'Microsoft did not return an ID token.'
-    );
-  }
+// function userFromToken(
+//   tokens: TokenResponse
+// ): AuthUser {
+//   if (!tokens.idToken) {
+//     throw new Error(
+//       'Microsoft did not return an ID token.'
+//     );
+//   }
 
-  let claims: MicrosoftIdTokenClaims;
+//   let claims: MicrosoftIdTokenClaims;
 
-  try {
-    claims =
-      jwtDecode<MicrosoftIdTokenClaims>(
-        tokens.idToken
+//   try {
+//     claims =
+//       jwtDecode<MicrosoftIdTokenClaims>(
+//         tokens.idToken
+//       );
+//   } catch {
+//     throw new Error(
+//       'Unable to read the Microsoft ID token.'
+//     );
+//   }
+
+//   const email =
+//     claims.preferred_username ??
+//     claims.email ??
+//     claims.upn ??
+//     '';
+
+//   if (!email) {
+//     throw new Error(
+//       'Microsoft account did not provide an email address.'
+//     );
+//   }
+
+//   /**
+//    * IMPORTANT:
+//    *
+//    * For this POC we're assigning lecturer because
+//    * we're testing the lecturer attendance screen.
+//    *
+//    * Later, role should come from Entra app roles,
+//    * your Student Profile API, or another trusted
+//    * university source.
+//    */
+//   return {
+//   name: claims.name ?? email,
+//   email,
+
+//   // Mock/unknown until Student Profile API is connected
+//   studentId: null,
+//   sisId: null,
+
+//   method: 'microsoft',
+//   };
+// }
+
+  function userFromToken(tokens: TokenResponse): AuthUser {
+    if (!tokens.idToken) {
+      throw new Error(
+        'Microsoft did not return an ID token.'
       );
-  } catch {
-    throw new Error(
-      'Unable to read the Microsoft ID token.'
+    }
+
+    const claims = jwtDecode<MicrosoftIdTokenClaims>(
+      tokens.idToken
     );
+
+    const email =
+      claims.preferred_username ??
+      claims.email;
+
+    if (!email) {
+      throw new Error(
+        'Microsoft account has no email address.'
+      );
+    }
+
+    const studentId =
+      studentIdFromEmail(email);
+
+    if (!studentId) {
+      throw new Error(
+        'This application is only available to Swinburne student accounts.'
+      );
+    }
+
+    return {
+      name: claims.name ?? email,
+      email,
+      studentId,
+      sisId: studentId,
+      method: 'microsoft',
+    };
   }
-
-  const email =
-    claims.preferred_username ??
-    claims.email ??
-    claims.upn ??
-    '';
-
-  if (!email) {
-    throw new Error(
-      'Microsoft account did not provide an email address.'
-    );
-  }
-
-  /**
-   * IMPORTANT:
-   *
-   * For this POC we're assigning lecturer because
-   * we're testing the lecturer attendance screen.
-   *
-   * Later, role should come from Entra app roles,
-   * your Student Profile API, or another trusted
-   * university source.
-   */
-  return {
-    name: claims.name ?? email,
-    email,
-
-    student: null,
-    sisId: null,
-
-    role: 'lecturer',
-    method: 'microsoft',
-  };
-}
-
 export function AuthProvider({
   children,
 }: {
@@ -456,4 +505,12 @@ export function useAuth() {
   }
 
   return context;
+}
+
+function studentIdFromEmail(email: string): string | null {
+  const match = email
+    .toLowerCase()
+    .match(/^(\d+)@students\.swinburne\.edu\.my$/);
+
+  return match?.[1] ?? null;
 }

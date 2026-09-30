@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "dependencies": {
     "@expo/ui": "~57.0.20",
-    "expo": "~57.0.25",
+    "expo": "~57.0.26",
     "expo-auth-session": "~57.0.13",
     "expo-camera": "~57.0.5",
     "expo-constants": "~57.0.18",
