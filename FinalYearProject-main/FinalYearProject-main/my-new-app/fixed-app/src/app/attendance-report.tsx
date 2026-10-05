@@ -39,6 +39,10 @@ export default function AttendanceReportScreen() {
     useState<string | null>(null);
 
 
+  // ==========================================
+  // GENERATE REPORT
+  // ==========================================
+
   async function generateReport() {
 
     if (!user?.sisId) {
@@ -60,17 +64,23 @@ export default function AttendanceReportScreen() {
 
 
       console.log(
-        '[Report] Student:',
+        '=============================='
+      );
+
+      console.log(
+        '[REPORT] Student:',
         user.email
       );
 
       console.log(
-        '[Report] SIS ID:',
+        '[REPORT] SIS ID:',
         user.sisId
       );
 
 
-      // Get report data from n8n
+      // ======================================
+      // GET REAL QWICKLY ATTENDANCE
+      // ======================================
 
       const reportData =
         await getAttendanceReport(
@@ -81,7 +91,9 @@ export default function AttendanceReportScreen() {
       setReport(reportData);
 
 
-      // Convert report data → HTML → PDF
+      // ======================================
+      // CONVERT REPORT -> HTML -> PDF
+      // ======================================
 
       const uri =
         await generateAttendancePdf(
@@ -90,6 +102,16 @@ export default function AttendanceReportScreen() {
 
 
       setPdfUri(uri);
+
+
+      console.log(
+        '[REPORT] PDF generated:',
+        uri
+      );
+
+      console.log(
+        '=============================='
+      );
 
 
       Alert.alert(
@@ -101,7 +123,7 @@ export default function AttendanceReportScreen() {
     } catch (error) {
 
       console.error(
-        '[Report] Error:',
+        '[REPORT] Error:',
         error
       );
 
@@ -123,6 +145,10 @@ export default function AttendanceReportScreen() {
 
   }
 
+
+  // ==========================================
+  // SHARE PDF
+  // ==========================================
 
   async function shareReport() {
 
@@ -159,6 +185,10 @@ export default function AttendanceReportScreen() {
   }
 
 
+  // ==========================================
+  // SCREEN
+  // ==========================================
+
   return (
 
     <ScrollView
@@ -167,259 +197,973 @@ export default function AttendanceReportScreen() {
       }
     >
 
-      <Text style={styles.title}>
-        Attendance Report
-      </Text>
+      <View style={styles.content}>
 
 
-      <Text style={styles.description}>
-        Generate your attendance report
-        as a PDF document.
-      </Text>
+        {/* ====================================
+            TITLE
+        ==================================== */}
 
-
-      {/* STUDENT */}
-
-      <View style={styles.card}>
-
-        <Text style={styles.label}>
-          Student
-        </Text>
-
-        <Text style={styles.value}>
-          {user?.name ?? 'Unknown'}
+        <Text style={styles.title}>
+          Attendance Report
         </Text>
 
 
-        <Text style={styles.label}>
-          Student ID
+        <Text style={styles.description}>
+          Generate your attendance report
+          using your current Qwickly
+          attendance records.
         </Text>
 
-        <Text style={styles.value}>
-          {user?.sisId ?? 'Unavailable'}
-        </Text>
 
-      </View>
-
-
-      {/* GENERATE */}
-
-      <TouchableOpacity
-        style={[
-          styles.generateButton,
-
-          loading &&
-            styles.disabledButton
-        ]}
-        disabled={loading}
-        onPress={() =>
-          void generateReport()
-        }
-      >
-
-        {loading ? (
-
-          <ActivityIndicator
-            color="#ffffff"
-          />
-
-        ) : (
-
-          <Text
-            style={
-              styles.generateButtonText
-            }
-          >
-            Generate PDF Report
-          </Text>
-
-        )}
-
-      </TouchableOpacity>
-
-
-      {/* REPORT RESULT */}
-
-      {report && (
+        {/* ====================================
+            STUDENT
+        ==================================== */}
 
         <View style={styles.card}>
 
           <Text style={styles.cardTitle}>
-            Report Information
+            Student Information
           </Text>
 
 
-          <Text style={styles.info}>
-            Reference:
-            {' '}
-            {report.report.reference}
+          <Text style={styles.label}>
+            Student
+          </Text>
+
+          <Text style={styles.value}>
+            {user?.name ?? 'Unknown'}
           </Text>
 
 
-          <Text style={styles.info}>
-            Date:
-            {' '}
-            {report.report.date}
+          <Text style={styles.label}>
+            Student ID
+          </Text>
+
+          <Text style={styles.value}>
+            {user?.sisId ?? 'Unavailable'}
           </Text>
 
 
-          <Text style={styles.info}>
-            Period:
-            {' '}
-            {report.report.period}
+          <Text style={styles.label}>
+            Email
           </Text>
 
+          <Text style={styles.value}>
+            {user?.email ?? 'Unavailable'}
+          </Text>
 
-          {report.attendance.map(
-            (item, index) => (
+        </View>
 
-              <View
-                key={index}
-                style={styles.attendance}
+
+        {/* ====================================
+            GENERATE BUTTON
+        ==================================== */}
+
+        <TouchableOpacity
+          style={[
+            styles.generateButton,
+
+            loading &&
+              styles.disabledButton
+          ]}
+          disabled={loading}
+          onPress={() =>
+            void generateReport()
+          }
+        >
+
+          {loading ? (
+
+            <View style={styles.loadingRow}>
+
+              <ActivityIndicator
+                color="#ffffff"
+              />
+
+              <Text
+                style={
+                  styles.loadingButtonText
+                }
+              >
+                Generating Report...
+              </Text>
+
+            </View>
+
+          ) : (
+
+            <Text
+              style={
+                styles.generateButtonText
+              }
+            >
+              Generate PDF Report
+            </Text>
+
+          )}
+
+        </TouchableOpacity>
+
+
+        {/* ====================================
+            REPORT RESULT
+        ==================================== */}
+
+        {report && (
+
+          <>
+
+            {/* REPORT INFORMATION */}
+
+            <View style={styles.card}>
+
+              <Text style={styles.cardTitle}>
+                Report Information
+              </Text>
+
+
+              <InfoRow
+                label="Reference"
+                value={
+                  report.report.reference
+                }
+              />
+
+
+              <InfoRow
+                label="Date"
+                value={
+                  report.report.date
+                }
+              />
+
+
+              <InfoRow
+                label="Period"
+                value={
+                  report.report.period
+                }
+              />
+
+            </View>
+
+
+            {/* ==================================
+                OVERALL ATTENDANCE
+            ================================== */}
+
+            <View style={styles.overallCard}>
+
+              <Text style={styles.overallLabel}>
+                Overall Attendance
+              </Text>
+
+
+              <Text
+                style={
+                  styles.overallPercentage
+                }
               >
 
-                <Text style={styles.intake}>
-                  {item.intake}
-                </Text>
+                {
+                  report.attendance
+                    .percentage !== null
 
-                <Text>
-                  Attendance:
-                  {' '}
-                  {item.status}
-                </Text>
+                    ? `${report.attendance.percentage}%`
 
-                <Text>
-                  Percentage:
-                  {' '}
-                  {item.percentage}%
+                    : 'N/A'
+                }
+
+              </Text>
+
+
+              <Text style={styles.overallStatus}>
+
+                {report.attendance.status}
+
+              </Text>
+
+            </View>
+
+
+            {/* ==================================
+                ATTENDANCE SUMMARY
+            ================================== */}
+
+            <Text style={styles.sectionTitle}>
+              Attendance Summary
+            </Text>
+
+
+            <View style={styles.statsRow}>
+
+              <StatBox
+                label="Present"
+                value={
+                  report.attendance.present
+                }
+              />
+
+              <StatBox
+                label="Absent"
+                value={
+                  report.attendance.absent
+                }
+              />
+
+            </View>
+
+
+            <View style={styles.statsRow}>
+
+              <StatBox
+                label="Excused"
+                value={
+                  report.attendance.excused
+                }
+              />
+
+              <StatBox
+                label="No Record"
+                value={
+                  report.attendance.noRecord
+                }
+              />
+
+            </View>
+
+
+            <View style={styles.card}>
+
+              <InfoRow
+                label="Total Sessions"
+                value={
+                  String(
+                    report.attendance
+                      .totalSessions
+                  )
+                }
+              />
+
+
+              <InfoRow
+                label="Counted Sessions"
+                value={
+                  String(
+                    report.attendance
+                      .countedSessions
+                  )
+                }
+              />
+
+            </View>
+
+
+            {/* ==================================
+                SESSION DETAILS
+            ================================== */}
+
+            <Text style={styles.sectionTitle}>
+              Attendance Sessions
+            </Text>
+
+
+            {report.sessions.length === 0 ? (
+
+              <View style={styles.card}>
+
+                <Text style={styles.emptyText}>
+                  No attendance sessions
+                  are available.
                 </Text>
 
               </View>
 
-            )
-          )}
+            ) : (
 
-        </View>
+              report.sessions.map(
+                session => (
 
-      )}
+                  <View
+                    key={
+                      session.sessionId
+                    }
+                    style={
+                      styles.sessionCard
+                    }
+                  >
+
+                    <View
+                      style={
+                        styles.sessionHeader
+                      }
+                    >
+
+                      <Text
+                        style={
+                          styles.sessionTitle
+                        }
+                      >
+                        {session.title}
+                      </Text>
 
 
-      {/* SHARE */}
+                      <Text
+                        style={
+                          styles.sessionStatus
+                        }
+                      >
+                        {session.status}
+                      </Text>
 
-      {pdfUri && (
+                    </View>
 
-        <TouchableOpacity
-          style={styles.shareButton}
-          onPress={() =>
-            void shareReport()
-          }
-        >
 
-          <Text
-            style={
-              styles.shareButtonText
-            }
-          >
-            Share / Save PDF
-          </Text>
+                    <Text
+                      style={
+                        styles.sessionInfo
+                      }
+                    >
+                      Date:
+                      {' '}
+                      {
+                        formatSessionDate(
+                          session.startTime
+                        )
+                      }
+                    </Text>
 
-        </TouchableOpacity>
 
-      )}
+                    <Text
+                      style={
+                        styles.sessionInfo
+                      }
+                    >
+                      Session ID:
+                      {' '}
+                      {session.sessionId}
+                    </Text>
+
+
+                    <Text
+                      style={
+                        styles.sessionInfo
+                      }
+                    >
+                      Session Method:
+                      {' '}
+                      {
+                        session.method ??
+                        'N/A'
+                      }
+                    </Text>
+
+
+                    {
+                      session.attendanceMethod && (
+
+                        <Text
+                          style={
+                            styles.sessionInfo
+                          }
+                        >
+                          Attendance Method:
+                          {' '}
+                          {
+                            session
+                              .attendanceMethod
+                          }
+                        </Text>
+
+                      )
+                    }
+
+                  </View>
+
+                )
+              )
+
+            )}
+
+
+            {/* ==================================
+                PDF READY
+            ================================== */}
+
+            {pdfUri && (
+
+              <View style={styles.successCard}>
+
+                <Text style={styles.successTitle}>
+                  PDF Ready
+                </Text>
+
+                <Text style={styles.successText}>
+                  Your attendance report has
+                  been generated successfully.
+                </Text>
+
+              </View>
+
+            )}
+
+
+            {/* ==================================
+                SHARE
+            ================================== */}
+
+            {pdfUri && (
+
+              <TouchableOpacity
+                style={styles.shareButton}
+                onPress={() =>
+                  void shareReport()
+                }
+              >
+
+                <Text
+                  style={
+                    styles.shareButtonText
+                  }
+                >
+                  Share / Save PDF
+                </Text>
+
+              </TouchableOpacity>
+
+            )}
+
+          </>
+
+        )}
+
+      </View>
 
     </ScrollView>
 
   );
+
 }
 
 
-const styles = StyleSheet.create({
+// ============================================
+// INFO ROW
+// ============================================
 
-  container: {
-    flexGrow: 1,
-    padding: 24,
-    backgroundColor: '#ffffff',
-  },
+function InfoRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
 
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-  },
+  return (
 
-  description: {
-    marginTop: 8,
-    marginBottom: 24,
-    color: '#666666',
-  },
+    <View style={styles.infoRow}>
 
-  card: {
-    padding: 18,
-    borderRadius: 12,
-    backgroundColor: '#f2f2f2',
-    marginBottom: 20,
-  },
+      <Text style={styles.infoLabel}>
+        {label}
+      </Text>
 
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
+      <Text style={styles.infoValue}>
+        {value}
+      </Text>
 
-  label: {
-    marginTop: 8,
-    fontSize: 12,
-    color: '#666666',
-  },
+    </View>
 
-  value: {
-    marginTop: 2,
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  );
 
-  info: {
-    marginTop: 5,
-  },
+}
 
-  attendance: {
-    marginTop: 15,
-    paddingTop: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#cccccc',
-  },
 
-  intake: {
-    fontWeight: 'bold',
-    marginBottom: 5,
-  },
+// ============================================
+// STAT BOX
+// ============================================
 
-  generateButton: {
-    padding: 16,
-    borderRadius: 10,
-    backgroundColor: '#111111',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
+function StatBox({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
 
-  generateButtonText: {
-    color: '#ffffff',
-    fontWeight: 'bold',
-  },
+  return (
 
-  disabledButton: {
-    opacity: 0.6,
-  },
+    <View style={styles.statBox}>
 
-  shareButton: {
-    padding: 16,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#111111',
-    alignItems: 'center',
-  },
+      <Text style={styles.statValue}>
+        {value}
+      </Text>
 
-  shareButtonText: {
-    fontWeight: 'bold',
-  },
+      <Text style={styles.statLabel}>
+        {label}
+      </Text>
 
-});
+    </View>
+
+  );
+
+}
+
+
+// ============================================
+// DATE FORMATTER
+// ============================================
+
+function formatSessionDate(
+  value: string | null
+): string {
+
+  if (!value) {
+    return 'N/A';
+  }
+
+
+  const date =
+    new Date(value);
+
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+
+    return 'N/A';
+
+  }
+
+
+  return date.toLocaleString(
+    'en-MY',
+    {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }
+  );
+
+}
+
+
+// ============================================
+// STYLES
+// ============================================
+
+const styles =
+  StyleSheet.create({
+
+    container: {
+
+      flexGrow: 1,
+
+      padding: 24,
+
+      backgroundColor:
+        '#f5f5f5',
+
+    },
+
+
+    content: {
+
+      width: '100%',
+
+      maxWidth: 1000,
+
+      alignSelf: 'center',
+
+    },
+
+
+    title: {
+
+      fontSize: 28,
+
+      fontWeight: 'bold',
+
+    },
+
+
+    description: {
+
+      marginTop: 8,
+
+      marginBottom: 24,
+
+      color: '#666666',
+
+    },
+
+
+    card: {
+
+      padding: 18,
+
+      borderRadius: 12,
+
+      backgroundColor:
+        '#ffffff',
+
+      marginBottom: 20,
+
+    },
+
+
+    cardTitle: {
+
+      fontSize: 18,
+
+      fontWeight: 'bold',
+
+      marginBottom: 12,
+
+    },
+
+
+    label: {
+
+      marginTop: 8,
+
+      fontSize: 12,
+
+      color: '#666666',
+
+    },
+
+
+    value: {
+
+      marginTop: 2,
+
+      fontSize: 16,
+
+      fontWeight: '600',
+
+    },
+
+
+    infoRow: {
+
+      flexDirection: 'row',
+
+      justifyContent:
+        'space-between',
+
+      paddingVertical: 7,
+
+      borderBottomWidth: 1,
+
+      borderBottomColor:
+        '#eeeeee',
+
+    },
+
+
+    infoLabel: {
+
+      color: '#666666',
+
+    },
+
+
+    infoValue: {
+
+      fontWeight: '600',
+
+      textAlign: 'right',
+
+      flexShrink: 1,
+
+      marginLeft: 20,
+
+    },
+
+
+    generateButton: {
+
+      padding: 16,
+
+      borderRadius: 10,
+
+      backgroundColor:
+        '#111111',
+
+      alignItems: 'center',
+
+      marginBottom: 20,
+
+    },
+
+
+    generateButtonText: {
+
+      color: '#ffffff',
+
+      fontWeight: 'bold',
+
+    },
+
+
+    disabledButton: {
+
+      opacity: 0.6,
+
+    },
+
+
+    loadingRow: {
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      gap: 10,
+
+    },
+
+
+    loadingButtonText: {
+
+      color: '#ffffff',
+
+      fontWeight: 'bold',
+
+    },
+
+
+    overallCard: {
+
+      backgroundColor:
+        '#ffffff',
+
+      borderRadius: 12,
+
+      padding: 24,
+
+      alignItems: 'center',
+
+      marginBottom: 20,
+
+    },
+
+
+    overallLabel: {
+
+      fontSize: 14,
+
+      color: '#666666',
+
+    },
+
+
+    overallPercentage: {
+
+      fontSize: 44,
+
+      fontWeight: 'bold',
+
+      marginVertical: 5,
+
+    },
+
+
+    overallStatus: {
+
+      fontSize: 16,
+
+      fontWeight: '600',
+
+    },
+
+
+    sectionTitle: {
+
+      fontSize: 20,
+
+      fontWeight: 'bold',
+
+      marginTop: 5,
+
+      marginBottom: 12,
+
+    },
+
+
+    statsRow: {
+
+      flexDirection: 'row',
+
+      gap: 12,
+
+      marginBottom: 12,
+
+    },
+
+
+    statBox: {
+
+      flex: 1,
+
+      backgroundColor:
+        '#ffffff',
+
+      borderRadius: 12,
+
+      padding: 18,
+
+      alignItems: 'center',
+
+    },
+
+
+    statValue: {
+
+      fontSize: 26,
+
+      fontWeight: 'bold',
+
+    },
+
+
+    statLabel: {
+
+      marginTop: 4,
+
+      color: '#666666',
+
+    },
+
+
+    sessionCard: {
+
+      backgroundColor:
+        '#ffffff',
+
+      borderRadius: 12,
+
+      padding: 16,
+
+      marginBottom: 12,
+
+    },
+
+
+    sessionHeader: {
+
+      flexDirection: 'row',
+
+      justifyContent:
+        'space-between',
+
+      alignItems: 'center',
+
+      marginBottom: 8,
+
+    },
+
+
+    sessionTitle: {
+
+      fontSize: 16,
+
+      fontWeight: '600',
+
+      flex: 1,
+
+    },
+
+
+    sessionStatus: {
+
+      fontWeight: '600',
+
+      marginLeft: 10,
+
+    },
+
+
+    sessionInfo: {
+
+      fontSize: 13,
+
+      color: '#555555',
+
+      marginTop: 3,
+
+    },
+
+
+    emptyText: {
+
+      color: '#666666',
+
+      textAlign: 'center',
+
+    },
+
+
+    successCard: {
+
+      backgroundColor:
+        '#ffffff',
+
+      borderRadius: 12,
+
+      padding: 18,
+
+      marginTop: 8,
+
+      marginBottom: 12,
+
+    },
+
+
+    successTitle: {
+
+      fontSize: 16,
+
+      fontWeight: 'bold',
+
+    },
+
+
+    successText: {
+
+      marginTop: 5,
+
+      color: '#666666',
+
+    },
+
+
+    shareButton: {
+
+      padding: 16,
+
+      borderRadius: 10,
+
+      borderWidth: 1,
+
+      borderColor:
+        '#111111',
+
+      alignItems: 'center',
+
+      marginBottom: 30,
+
+    },
+
+
+    shareButtonText: {
+
+      fontWeight: 'bold',
+
+    },
+
+  });
