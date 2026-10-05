@@ -1,16 +1,17 @@
 import {
-  useEffect,
-  useState,
-} from 'react';
-
-import {
   ActivityIndicator,
-  FlatList,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
 
 import {
   AttendanceResponse,
@@ -19,370 +20,502 @@ import {
 
 import { useAuth } from '../context/Auth';
 
+
 export default function AttendanceScreen() {
 
-  // Get the currently logged-in Microsoft student
-  const { user } = useAuth();
+  const { user } =
+    useAuth();
 
   const [data, setData] =
-    useState<AttendanceResponse | null>(null);
+    useState<AttendanceResponse | null>(
+      null
+    );
 
   const [loading, setLoading] =
     useState(true);
 
   const [error, setError] =
-    useState('');
+    useState<string | null>(null);
 
-  async function loadAttendance() {
-    try {
-      setLoading(true);
-      setError('');
 
-      // Make sure Microsoft login gave us a student/SIS ID
+  const loadAttendance =
+    useCallback(async () => {
+
       if (!user?.sisId) {
-        throw new Error(
-          'Student ID could not be determined from your Microsoft account.'
+
+        setError(
+          'Student ID is unavailable.'
         );
+
+        setLoading(false);
+
+        return;
       }
 
-      console.log(
-        '[Attendance] Logged-in student:',
-        user.email
-      );
+      try {
 
-      console.log(
-        '[Attendance] SIS ID:',
-        user.sisId
-      );
+        setLoading(true);
 
-      // Send THIS student's SIS ID to attendanceAPI
-      const result =
-        await getAttendance(user.sisId);
+        setError(null);
 
-      console.log(
-        '[Attendance] Result:',
-        result
-      );
+        const result =
+          await getAttendance(
+            user.sisId
+          );
 
-      setData(result);
+        setData(result);
 
-    } catch (err) {
+      } catch (err) {
 
-      console.error(
-        '[Attendance] Error:',
-        err
-      );
+        console.error(
+          'Attendance loading error:',
+          err
+        );
 
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Unable to load attendance.'
-      );
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Unable to load attendance.'
+        );
 
-    } finally {
-      setLoading(false);
-    }
-  }
+      } finally {
+
+        setLoading(false);
+
+      }
+
+    }, [user?.sisId]);
+
 
   useEffect(() => {
-    if (user?.sisId) {
-      void loadAttendance();
-    } else {
-      setLoading(false);
-    }
-  }, [user?.sisId]);
+
+    loadAttendance();
+
+  }, [loadAttendance]);
+
 
   if (loading) {
+
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
 
-        <Text>
+        <Text style={styles.loadingText}>
           Loading attendance...
         </Text>
       </View>
     );
+
   }
 
-  if (!user?.sisId) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.error}>
-          Student ID could not be determined
-          from your Microsoft account.
-        </Text>
-      </View>
-    );
-  }
 
   if (error) {
+
     return (
       <View style={styles.center}>
 
-        <Text style={styles.error}>
+        <Text style={styles.errorTitle}>
+          Unable to load attendance
+        </Text>
+
+        <Text style={styles.errorText}>
           {error}
         </Text>
 
         <TouchableOpacity
-          style={styles.button}
-          onPress={() =>
-            void loadAttendance()
-          }
+          style={styles.retryButton}
+          onPress={loadAttendance}
         >
-          <Text style={styles.buttonText}>
+          <Text style={styles.retryText}>
             Try Again
           </Text>
         </TouchableOpacity>
 
       </View>
     );
+
   }
+
 
   if (!data) {
-    return null;
-  }
 
-  // Protect the app if n8n returns the wrong structure
-  if (
-    !data.student ||
-    !data.overall ||
-    !Array.isArray(data.courses)
-  ) {
     return (
       <View style={styles.center}>
-
-        <Text style={styles.error}>
-          Invalid attendance data received
-          from the server.
+        <Text>
+          No attendance data available.
         </Text>
-
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() =>
-            void loadAttendance()
-          }
-        >
-          <Text style={styles.buttonText}>
-            Try Again
-          </Text>
-        </TouchableOpacity>
-
       </View>
     );
+
   }
 
+
+  const {
+    student,
+    attendance,
+    records,
+  } = data;
+
+
   return (
-    <View style={styles.container}>
+
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={
+        styles.content
+      }
+    >
 
       <Text style={styles.title}>
         My Attendance
       </Text>
 
-      <Text style={styles.student}>
-        {data.student.name}
+
+      <Text style={styles.studentName}>
+        {student.name}
       </Text>
 
-      {/* OVERALL */}
+      <Text style={styles.studentId}>
+        Student ID: {student.sisId}
+      </Text>
 
-      <View style={styles.overallCard}>
 
-        <Text style={styles.percentage}>
-          {data.overall.percentage}%
-        </Text>
+      {/* Overall Attendance */}
 
-        <Text>
+      <View style={styles.mainCard}>
+
+        <Text style={styles.cardLabel}>
           Overall Attendance
         </Text>
 
-        <View style={styles.summary}>
+        <Text style={styles.percentage}>
 
-          <View>
-            <Text style={styles.number}>
-              {data.overall.present}
-            </Text>
-            <Text>Present</Text>
-          </View>
+          {attendance.percentage !== null
+            ? `${attendance.percentage}%`
+            : 'N/A'}
 
-          <View>
-            <Text style={styles.number}>
-              {data.overall.late}
-            </Text>
-            <Text>Late</Text>
-          </View>
+        </Text>
 
-          <View>
-            <Text style={styles.number}>
-              {data.overall.absent}
-            </Text>
-            <Text>Absent</Text>
-          </View>
-
-        </View>
+        <Text style={styles.status}>
+          {attendance.attendanceStatus}
+        </Text>
 
       </View>
 
-      <Text style={styles.heading}>
-        My Units
+
+      {/* Statistics */}
+
+      <View style={styles.statsRow}>
+
+        <StatBox
+          label="Present"
+          value={attendance.present}
+        />
+
+        <StatBox
+          label="Absent"
+          value={attendance.absent}
+        />
+
+      </View>
+
+
+      <View style={styles.statsRow}>
+
+        <StatBox
+          label="Excused"
+          value={attendance.excused}
+        />
+
+        <StatBox
+          label="No Record"
+          value={attendance.noRecord}
+        />
+
+      </View>
+
+
+      <Text style={styles.sectionTitle}>
+        Attendance Sessions
       </Text>
 
-      <FlatList
-        data={data.courses}
 
-        keyExtractor={(item) =>
-          String(item.id)
-        }
+      {records.map(record => (
 
-        renderItem={({ item }) => (
+        <View
+          key={record.sessionId}
+          style={styles.sessionCard}
+        >
 
-          <View style={styles.course}>
+          <View style={styles.sessionHeader}>
 
-            <View style={styles.courseInfo}>
+            <Text style={styles.sessionTitle}>
+              {record.title}
+            </Text>
 
-              <Text style={styles.courseCode}>
-                {item.code}
-              </Text>
-
-              <Text style={styles.courseName}>
-                {item.name}
-              </Text>
-
-              <Text style={styles.details}>
-                Present {item.present}
-                {'  •  '}
-                Late {item.late}
-                {'  •  '}
-                Absent {item.absent}
-              </Text>
-
-            </View>
-
-            <Text style={styles.coursePercentage}>
-              {item.percentage}%
+            <Text style={styles.sessionStatus}>
+              {record.status}
             </Text>
 
           </View>
 
-        )}
-      />
+
+          <Text style={styles.sessionInfo}>
+
+            {formatDate(
+              record.startTime
+            )}
+
+          </Text>
+
+
+          <Text style={styles.sessionInfo}>
+            Session ID: {record.sessionId}
+          </Text>
+
+
+          <Text style={styles.sessionInfo}>
+            Session Method:
+            {' '}
+            {record.method ?? 'N/A'}
+          </Text>
+
+
+          {record.attendanceMethod && (
+
+            <Text style={styles.sessionInfo}>
+              Attendance Method:
+              {' '}
+              {record.attendanceMethod}
+            </Text>
+
+          )}
+
+        </View>
+
+      ))}
+
 
       <TouchableOpacity
-        style={styles.button}
-        onPress={() =>
-          void loadAttendance()
-        }
+        style={styles.refreshButton}
+        onPress={loadAttendance}
       >
-        <Text style={styles.buttonText}>
-          Refresh
+
+        <Text style={styles.refreshText}>
+          Refresh Attendance
         </Text>
+
       </TouchableOpacity>
 
-    </View>
+    </ScrollView>
+
   );
+
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 24,
-    backgroundColor: '#fff',
-  },
 
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 15,
-    padding: 24,
-  },
+function StatBox({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
 
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-  },
+  return (
 
-  student: {
-    color: '#666',
-    marginTop: 5,
-    marginBottom: 20,
-  },
+    <View style={styles.statBox}>
 
-  overallCard: {
-    padding: 24,
-    borderRadius: 15,
-    backgroundColor: '#f2f2f2',
-    alignItems: 'center',
-    marginBottom: 25,
-  },
+      <Text style={styles.statValue}>
+        {value}
+      </Text>
 
-  percentage: {
-    fontSize: 44,
-    fontWeight: 'bold',
-  },
+      <Text style={styles.statLabel}>
+        {label}
+      </Text>
 
-  summary: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    marginTop: 20,
-  },
+    </View>
 
-  number: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
+  );
 
-  heading: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
+}
 
-  course: {
-    flexDirection: 'row',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-  },
 
-  courseInfo: {
-    flex: 1,
-  },
+function formatDate(
+  value: string | null
+) {
 
-  courseCode: {
-    fontSize: 17,
-    fontWeight: 'bold',
-  },
+  if (!value) {
+    return 'Date unavailable';
+  }
 
-  courseName: {
-    marginTop: 3,
-  },
+  const date =
+    new Date(value);
 
-  details: {
-    marginTop: 8,
-    color: '#666',
-    fontSize: 12,
-  },
+  if (Number.isNaN(date.getTime())) {
+    return 'Date unavailable';
+  }
 
-  coursePercentage: {
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
+  return date.toLocaleString();
+}
 
-  button: {
-    backgroundColor: '#222',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 15,
-  },
 
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
+const styles =
+  StyleSheet.create({
 
-  error: {
-    color: '#a00000',
-  },
-});
+    container: {
+      flex: 1,
+      backgroundColor: '#f5f5f5',
+    },
+
+    content: {
+      padding: 20,
+      paddingBottom: 50,
+    },
+
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 30,
+    },
+
+    title: {
+      fontSize: 28,
+      fontWeight: '700',
+      marginBottom: 6,
+    },
+
+    studentName: {
+      fontSize: 18,
+      fontWeight: '600',
+    },
+
+    studentId: {
+      fontSize: 14,
+      marginBottom: 20,
+    },
+
+    mainCard: {
+      backgroundColor: '#ffffff',
+      borderRadius: 14,
+      padding: 24,
+      marginBottom: 16,
+      alignItems: 'center',
+    },
+
+    cardLabel: {
+      fontSize: 15,
+    },
+
+    percentage: {
+      fontSize: 46,
+      fontWeight: '700',
+      marginVertical: 6,
+    },
+
+    status: {
+      fontSize: 16,
+      fontWeight: '600',
+    },
+
+    statsRow: {
+      flexDirection: 'row',
+      gap: 12,
+      marginBottom: 12,
+    },
+
+    statBox: {
+      flex: 1,
+      backgroundColor: '#ffffff',
+      padding: 18,
+      borderRadius: 12,
+      alignItems: 'center',
+    },
+
+    statValue: {
+      fontSize: 24,
+      fontWeight: '700',
+    },
+
+    statLabel: {
+      marginTop: 4,
+      fontSize: 13,
+    },
+
+    sectionTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      marginTop: 18,
+      marginBottom: 12,
+    },
+
+    sessionCard: {
+      backgroundColor: '#ffffff',
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+    },
+
+    sessionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 8,
+    },
+
+    sessionTitle: {
+      fontSize: 17,
+      fontWeight: '600',
+      flex: 1,
+    },
+
+    sessionStatus: {
+      fontWeight: '600',
+    },
+
+    sessionInfo: {
+      fontSize: 13,
+      marginTop: 3,
+    },
+
+    refreshButton: {
+      padding: 16,
+      borderRadius: 10,
+      backgroundColor: '#111111',
+      alignItems: 'center',
+      marginTop: 12,
+    },
+
+    refreshText: {
+      color: '#ffffff',
+      fontWeight: '600',
+    },
+
+    loadingText: {
+      marginTop: 12,
+    },
+
+    errorTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      marginBottom: 8,
+    },
+
+    errorText: {
+      textAlign: 'center',
+      marginBottom: 20,
+    },
+
+    retryButton: {
+      backgroundColor: '#111111',
+      paddingHorizontal: 24,
+      paddingVertical: 12,
+      borderRadius: 8,
+    },
+
+    retryText: {
+      color: '#ffffff',
+      fontWeight: '600',
+    },
+
+  });

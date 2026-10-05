@@ -1,5 +1,10 @@
-import { refreshAsync, TokenResponse } from 'expo-auth-session';
+import {
+  refreshAsync,
+  TokenResponse,
+} from 'expo-auth-session';
+
 import { jwtDecode } from 'jwt-decode';
+
 import {
   createContext,
   ReactNode,
@@ -16,11 +21,11 @@ import {
   tokenEndpoint,
 } from '../services/config';
 
-/**
- * Basic information returned from Microsoft Entra.
- *
- * For the proof-of-concept we are NOT calling /auth/me.
- */
+
+// ============================================================
+// MICROSOFT TOKEN CLAIMS
+// ============================================================
+
 interface MicrosoftIdTokenClaims {
   name?: string;
   preferred_username?: string;
@@ -31,351 +36,532 @@ interface MicrosoftIdTokenClaims {
   exp?: number;
 }
 
-// export interface AuthUser {
-//   name: string;
-//   email: string;
 
-//   /**
-//    * These are kept for compatibility with the rest
-//    * of your existing application.
-//    *
-//    * They will eventually come from your student
-//    * profile API / Qwickly integration.
-//    */
-//   student: string | null;
-//   sisId: string | null;
-
-//   role: 'student' | 'lecturer';
-//   method: 'microsoft';
-// }
+// ============================================================
+// AUTHENTICATED USER
+// ============================================================
 
 export interface AuthUser {
   name: string;
   email: string;
 
-  // Will eventually come from Student Profile API
   studentId: string | null;
   sisId: string | null;
 
-  method: 'microsoft';
+  /*
+   * microsoft:
+   * User authenticated normally using Microsoft Entra.
+   *
+   * development:
+   * Local development user used when running inside Expo Go.
+   */
+  method:
+    | 'microsoft'
+    | 'development';
 }
+
+
+// ============================================================
+// MICROSOFT SESSION
+// ============================================================
 
 interface StoredSession {
   accessToken: string;
+
   refreshToken?: string;
+
   idToken?: string;
+
   expiresAt: number;
 }
 
+
+// ============================================================
+// AUTH CONTEXT
+// ============================================================
+
 interface AuthContextType {
   isAuthenticated: boolean;
+
   isLoading: boolean;
 
   user: AuthUser | null;
+
   error: string | null;
 
-  signIn: (tokens: TokenResponse) => Promise<void>;
-  signOut: () => Promise<void>;
 
-  /**
-   * Returns a valid Microsoft access token.
-   *
-   * This is useful later when n8n needs the
-   * authenticated user's token.
+  /*
+   * Real Microsoft authentication.
    */
-  getAccessToken: () => Promise<string>;
+  signIn:
+    (
+      tokens: TokenResponse
+    ) => Promise<void>;
+
+
+  /*
+   * Expo Go development authentication.
+   *
+   * This DOES NOT create a Microsoft session.
+   */
+  developmentSignIn:
+    () => Promise<void>;
+
+
+  signOut:
+    () => Promise<void>;
+
+
+  /*
+   * Returns the Microsoft access token.
+   *
+   * Only available when:
+   *
+   * user.method === 'microsoft'
+   */
+  getAccessToken:
+    () => Promise<string>;
 }
 
-const Auth = createContext<AuthContextType | null>(null);
 
-/**
- * Convert Expo's TokenResponse into the internal
- * session format used by the application.
- */
+const Auth =
+  createContext<AuthContextType | null>(
+    null
+  );
+
+
+// ============================================================
+// TOKEN → STORED SESSION
+// ============================================================
+
 function fromTokens(
   tokens: TokenResponse,
   previous?: StoredSession
 ): StoredSession {
+
   if (!tokens.accessToken) {
+
     throw new Error(
       'Microsoft did not return an access token.'
     );
+
   }
 
-  /**
-   * Microsoft normally supplies expiresIn.
-   * Use one hour as a fallback for the POC.
+
+  /*
+   * Microsoft normally returns expiresIn.
+   *
+   * One hour is used as a fallback.
    */
-  const expiresIn = tokens.expiresIn ?? 3600;
+  const expiresIn =
+    tokens.expiresIn ??
+    3600;
+
 
   const issuedAt =
-    tokens.issuedAt ?? Date.now() / 1000;
+    tokens.issuedAt ??
+    Date.now() / 1000;
+
 
   return {
-    accessToken: tokens.accessToken,
+
+    accessToken:
+      tokens.accessToken,
+
 
     refreshToken:
       tokens.refreshToken ??
       previous?.refreshToken,
 
+
     idToken:
       tokens.idToken ??
       previous?.idToken,
 
+
     expiresAt:
       (issuedAt + expiresIn) * 1000,
+
   };
+
 }
 
-/**
- * Create our local user object directly from the
- * Microsoft ID token.
- *
- * This replaces the old:
- *
- * GET 192.168.100.25:6522/api/auth/me
- */
-// function userFromToken(
-//   tokens: TokenResponse
-// ): AuthUser {
-//   if (!tokens.idToken) {
-//     throw new Error(
-//       'Microsoft did not return an ID token.'
-//     );
-//   }
 
-//   let claims: MicrosoftIdTokenClaims;
+// ============================================================
+// MICROSOFT TOKEN → STUDENT
+// ============================================================
 
-//   try {
-//     claims =
-//       jwtDecode<MicrosoftIdTokenClaims>(
-//         tokens.idToken
-//       );
-//   } catch {
-//     throw new Error(
-//       'Unable to read the Microsoft ID token.'
-//     );
-//   }
+function userFromToken(
+  tokens: TokenResponse
+): AuthUser {
 
-//   const email =
-//     claims.preferred_username ??
-//     claims.email ??
-//     claims.upn ??
-//     '';
+  if (!tokens.idToken) {
 
-//   if (!email) {
-//     throw new Error(
-//       'Microsoft account did not provide an email address.'
-//     );
-//   }
-
-//   /**
-//    * IMPORTANT:
-//    *
-//    * For this POC we're assigning lecturer because
-//    * we're testing the lecturer attendance screen.
-//    *
-//    * Later, role should come from Entra app roles,
-//    * your Student Profile API, or another trusted
-//    * university source.
-//    */
-//   return {
-//   name: claims.name ?? email,
-//   email,
-
-//   // Mock/unknown until Student Profile API is connected
-//   studentId: null,
-//   sisId: null,
-
-//   method: 'microsoft',
-//   };
-// }
-
-  function userFromToken(tokens: TokenResponse): AuthUser {
-    if (!tokens.idToken) {
-      throw new Error(
-        'Microsoft did not return an ID token.'
-      );
-    }
-
-    const claims = jwtDecode<MicrosoftIdTokenClaims>(
-      tokens.idToken
+    throw new Error(
+      'Microsoft did not return an ID token.'
     );
 
-    const email =
-      claims.preferred_username ??
-      claims.email;
-
-    if (!email) {
-      throw new Error(
-        'Microsoft account has no email address.'
-      );
-    }
-
-    const studentId =
-      studentIdFromEmail(email);
-
-    if (!studentId) {
-      throw new Error(
-        'This application is only available to Swinburne student accounts.'
-      );
-    }
-
-    return {
-      name: claims.name ?? email,
-      email,
-      studentId,
-      sisId: studentId,
-      method: 'microsoft',
-    };
   }
+
+
+  let claims:
+    MicrosoftIdTokenClaims;
+
+
+  try {
+
+    claims =
+      jwtDecode<MicrosoftIdTokenClaims>(
+        tokens.idToken
+      );
+
+  } catch {
+
+    throw new Error(
+      'Unable to read the Microsoft ID token.'
+    );
+
+  }
+
+
+  const email =
+    claims.preferred_username ??
+    claims.email ??
+    claims.upn ??
+    '';
+
+
+  if (!email) {
+
+    throw new Error(
+      'Microsoft account did not provide an email address.'
+    );
+
+  }
+
+
+  /*
+   * Student email example:
+   *
+   * 104404156@students.swinburne.edu.my
+   *
+   * becomes:
+   *
+   * 104404156
+   */
+  const studentId =
+    studentIdFromEmail(
+      email
+    );
+
+
+  if (!studentId) {
+
+    throw new Error(
+      'This application is only available to Swinburne student accounts.'
+    );
+
+  }
+
+
+  return {
+
+    name:
+      claims.name ??
+      email,
+
+    email,
+
+    studentId,
+
+    sisId:
+      studentId,
+
+    method:
+      'microsoft',
+
+  };
+
+}
+
+
+// ============================================================
+// AUTH PROVIDER
+// ============================================================
+
 export function AuthProvider({
   children,
 }: {
   children: ReactNode;
 }) {
-  const [user, setUser] =
-    useState<AuthUser | null>(null);
 
-  const [isLoading, setLoading] =
-    useState(true);
+  // ----------------------------------------------------------
+  // STATE
+  // ----------------------------------------------------------
 
-  const [error, setError] =
-    useState<string | null>(null);
-
-  const session =
-    useRef<StoredSession | null>(null);
-
-  const refreshing =
-    useRef<Promise<StoredSession> | null>(
+  const [
+    user,
+    setUser,
+  ] =
+    useState<AuthUser | null>(
       null
     );
 
-  /**
-   * Sign out locally.
-   *
-   * For this POC no credentials are written
-   * to AsyncStorage / SecureStore.
-   */
+
+  const [
+    isLoading,
+    setLoading,
+  ] =
+    useState(
+      true
+    );
+
+
+  const [
+    error,
+    setError,
+  ] =
+    useState<string | null>(
+      null
+    );
+
+
+  // ----------------------------------------------------------
+  // MICROSOFT SESSION
+  // ----------------------------------------------------------
+
+  const session =
+    useRef<StoredSession | null>(
+      null
+    );
+
+
+  const refreshing =
+    useRef<
+      Promise<StoredSession> | null
+    >(
+      null
+    );
+
+
+  // ==========================================================
+  // SIGN OUT
+  // ==========================================================
+
   const signOut =
-    useCallback(async () => {
-      session.current = null;
-      refreshing.current = null;
+    useCallback(
+      async () => {
 
-      setUser(null);
-      setError(null);
+        session.current =
+          null;
 
-      console.log(
-        '[AUTH] Signed out.'
-      );
-    }, []);
+        refreshing.current =
+          null;
 
-  /**
-   * Return a valid session.
-   *
-   * Refresh the Microsoft access token if it is
-   * close to expiring.
-   */
+
+        setUser(
+          null
+        );
+
+        setError(
+          null
+        );
+
+
+        console.log(
+          '=============================='
+        );
+
+        console.log(
+          '[AUTH] Signed out.'
+        );
+
+        console.log(
+          '=============================='
+        );
+
+      },
+      []
+    );
+
+
+  // ==========================================================
+  // ACTIVE MICROSOFT SESSION
+  // ==========================================================
+
   const activeSession =
     useCallback(
       async (): Promise<StoredSession> => {
-        const current = session.current;
+
+        /*
+         * Development login intentionally
+         * does not have a Microsoft session.
+         */
+        if (
+          user?.method ===
+          'development'
+        ) {
+
+          throw new Error(
+            'Microsoft access tokens are not available in Expo Go development mode.'
+          );
+
+        }
+
+
+        const current =
+          session.current;
+
 
         if (!current) {
+
           throw new Error(
             'Please sign in again.'
           );
+
         }
 
-        /**
-         * Token still has more than one minute
-         * remaining.
+
+        /*
+         * Token still has more than
+         * one minute remaining.
          */
         if (
           current.expiresAt >
           Date.now() + 60_000
         ) {
+
           return current;
+
         }
 
-        if (!current.refreshToken) {
+
+        /*
+         * No refresh token means the
+         * Microsoft session cannot be renewed.
+         */
+        if (
+          !current.refreshToken
+        ) {
+
           await signOut();
+
 
           throw new Error(
             'Your Microsoft session expired. Please sign in again.'
           );
+
         }
 
-        if (!refreshing.current) {
+
+        /*
+         * Prevent multiple refresh requests
+         * from running simultaneously.
+         */
+        if (
+          !refreshing.current
+        ) {
+
           refreshing.current =
-            (async () => {
-              try {
-                console.log(
-                  '[AUTH] Refreshing Microsoft token...'
-                );
+            (
+              async () => {
 
-                const tokens =
-                  await refreshAsync(
-                    {
-                      clientId:
-                        authConfig.clientId,
+                try {
 
-                      refreshToken:
-                        current.refreshToken!,
-
-                      scopes,
-                    },
-                    {
-                      tokenEndpoint,
-                    }
+                  console.log(
+                    '[AUTH] Refreshing Microsoft token...'
                   );
 
-                const next =
-                  fromTokens(
-                    tokens,
-                    current
+
+                  const tokens =
+                    await refreshAsync(
+                      {
+                        clientId:
+                          authConfig.clientId,
+
+                        refreshToken:
+                          current.refreshToken!,
+
+                        scopes,
+                      },
+                      {
+                        tokenEndpoint,
+                      }
+                    );
+
+
+                  const next =
+                    fromTokens(
+                      tokens,
+                      current
+                    );
+
+
+                  session.current =
+                    next;
+
+
+                  console.log(
+                    '[AUTH] Token refreshed.'
                   );
 
-                session.current = next;
 
-                console.log(
-                  '[AUTH] Token refreshed.'
-                );
+                  return next;
 
-                return next;
-              } catch (err) {
-                console.error(
-                  '[AUTH] Token refresh failed:',
-                  err
-                );
+                } catch (err) {
 
-                await signOut();
+                  console.error(
+                    '[AUTH] Token refresh failed:',
+                    err
+                  );
 
-                throw new Error(
-                  'Your Microsoft session could not be renewed. Please sign in again.'
-                );
-              } finally {
-                refreshing.current = null;
+
+                  await signOut();
+
+
+                  throw new Error(
+                    'Your Microsoft session could not be renewed. Please sign in again.'
+                  );
+
+                } finally {
+
+                  refreshing.current =
+                    null;
+
+                }
+
               }
-            })();
+            )();
+
         }
+
 
         return refreshing.current;
+
       },
-      [signOut]
+      [
+        signOut,
+        user,
+      ]
     );
 
-  /**
-   * Called after index.tsx successfully exchanges
-   * the Microsoft authorization code.
-   */
+
+  // ==========================================================
+  // MICROSOFT SIGN IN
+  // ==========================================================
+
   const signIn =
     useCallback(
       async (
         tokens: TokenResponse
       ) => {
+
         try {
-          setError(null);
+
+          setError(
+            null
+          );
+
 
           console.log(
             '=============================='
@@ -385,12 +571,14 @@ export function AuthProvider({
             '[AUTH] Microsoft token received'
           );
 
+
           console.log(
             '[AUTH] Access token:',
             tokens.accessToken
               ? 'YES'
               : 'NO'
           );
+
 
           console.log(
             '[AUTH] ID token:',
@@ -399,6 +587,7 @@ export function AuthProvider({
               : 'NO'
           );
 
+
           console.log(
             '[AUTH] Refresh token:',
             tokens.refreshToken
@@ -406,111 +595,388 @@ export function AuthProvider({
               : 'NO'
           );
 
-          /**
-           * Never log the actual token.
+
+          /*
+           * Never log the actual Microsoft
+           * access/ID/refresh tokens.
            */
           const next =
-            fromTokens(tokens);
+            fromTokens(
+              tokens
+            );
+
 
           const profile =
-            userFromToken(tokens);
+            userFromToken(
+              tokens
+            );
 
-          session.current = next;
 
-          setUser(profile);
+          session.current =
+            next;
+
+
+          refreshing.current =
+            null;
+
+
+          setUser(
+            profile
+          );
+
 
           console.log(
             '[AUTH] User:',
             profile.email
           );
 
+
+          console.log(
+            '[AUTH] SIS ID:',
+            profile.sisId
+          );
+
+
+          console.log(
+            '[AUTH] Authentication method:',
+            profile.method
+          );
+
+
           console.log(
             '[AUTH] Microsoft sign-in successful.'
           );
 
+
           console.log(
             '=============================='
           );
+
         } catch (err) {
+
           console.error(
             '[AUTH] Sign-in failed:',
             err
           );
 
-          session.current = null;
-          setUser(null);
+
+          session.current =
+            null;
+
+
+          refreshing.current =
+            null;
+
+
+          setUser(
+            null
+          );
+
 
           const message =
             err instanceof Error
               ? err.message
               : 'Microsoft sign-in failed.';
 
-          setError(message);
+
+          setError(
+            message
+          );
+
 
           throw err;
+
         }
+
       },
       []
     );
 
-  /**
-   * Used later if you want to send the Microsoft
-   * access token to n8n.
-   */
+
+  // ==========================================================
+  // EXPO GO DEVELOPMENT LOGIN
+  // ==========================================================
+
+  const developmentSignIn =
+    useCallback(
+      async () => {
+
+        try {
+
+          setError(
+            null
+          );
+
+
+          console.log(
+            '=============================='
+          );
+
+          console.log(
+            '[AUTH] Expo Go development login'
+          );
+
+
+          /*
+           * IMPORTANT:
+           *
+           * This account exists ONLY so that
+           * the student application can be
+           * tested inside Expo Go.
+           *
+           * No Microsoft authentication occurs.
+           *
+           * No Microsoft token is generated.
+           */
+          const developmentUser:
+            AuthUser = {
+
+            name:
+              'Fredly Benny ANAK VILEN',
+
+            email:
+              '104404156@students.swinburne.edu.my',
+
+            studentId:
+              '104404156',
+
+            sisId:
+              '104404156',
+
+            method:
+              'development',
+
+          };
+
+
+          /*
+           * Make absolutely sure that an old
+           * Microsoft session is not reused.
+           */
+          session.current =
+            null;
+
+
+          refreshing.current =
+            null;
+
+
+          setUser(
+            developmentUser
+          );
+
+
+          console.log(
+            '[AUTH] Development user:',
+            developmentUser.email
+          );
+
+
+          console.log(
+            '[AUTH] SIS ID:',
+            developmentUser.sisId
+          );
+
+
+          console.log(
+            '[AUTH] Authentication method:',
+            developmentUser.method
+          );
+
+
+          console.log(
+            '[AUTH] Development login successful.'
+          );
+
+
+          console.log(
+            '=============================='
+          );
+
+        } catch (err) {
+
+          console.error(
+            '[AUTH] Development login failed:',
+            err
+          );
+
+
+          session.current =
+            null;
+
+
+          refreshing.current =
+            null;
+
+
+          setUser(
+            null
+          );
+
+
+          const message =
+            err instanceof Error
+              ? err.message
+              : 'Development login failed.';
+
+
+          setError(
+            message
+          );
+
+
+          throw err;
+
+        }
+
+      },
+      []
+    );
+
+
+  // ==========================================================
+  // GET MICROSOFT ACCESS TOKEN
+  // ==========================================================
+
   const getAccessToken =
-    useCallback(async () => {
-      const current =
-        await activeSession();
+    useCallback(
+      async () => {
 
-      return current.accessToken;
-    }, [activeSession]);
+        /*
+         * Development login deliberately
+         * does not provide a fake token.
+         */
+        if (
+          user?.method ===
+          'development'
+        ) {
 
-  /**
-   * POC:
-   *
-   * We intentionally DON'T restore a previous
-   * session from the old backend.
-   *
-   * Every browser refresh requires login again.
-   */
-  useEffect(() => {
-    setLoading(false);
-  }, []);
+          throw new Error(
+            'Microsoft access token is unavailable in Expo Go development mode.'
+          );
+
+        }
+
+
+        const current =
+          await activeSession();
+
+
+        return current.accessToken;
+
+      },
+      [
+        activeSession,
+        user,
+      ]
+    );
+
+
+  // ==========================================================
+  // INITIAL APPLICATION LOAD
+  // ==========================================================
+
+  useEffect(
+    () => {
+
+      /*
+       * For the current POC we intentionally
+       * do not restore an old authentication
+       * session.
+       *
+       * Reloading the application therefore
+       * requires login again.
+       */
+      setLoading(
+        false
+      );
+
+    },
+    []
+  );
+
+
+  // ==========================================================
+  // PROVIDER
+  // ==========================================================
 
   return (
+
     <Auth.Provider
       value={{
-        isAuthenticated: !!user,
+        isAuthenticated:
+          !!user,
+
         isLoading,
+
         user,
+
         error,
+
         signIn,
+
+        developmentSignIn,
+
         signOut,
+
         getAccessToken,
       }}
     >
+
       {children}
+
     </Auth.Provider>
+
   );
+
 }
 
+
+// ============================================================
+// AUTH HOOK
+// ============================================================
+
 export function useAuth() {
+
   const context =
-    useContext(Auth);
+    useContext(
+      Auth
+    );
+
 
   if (!context) {
+
     throw new Error(
       'useAuth must be used within an AuthProvider'
     );
+
   }
 
+
   return context;
+
 }
 
-function studentIdFromEmail(email: string): string | null {
-  const match = email
-    .toLowerCase()
-    .match(/^(\d+)@students\.swinburne\.edu\.my$/);
 
-  return match?.[1] ?? null;
+// ============================================================
+// STUDENT ID FROM SWINBURNE EMAIL
+// ============================================================
+
+function studentIdFromEmail(
+  email: string
+): string | null {
+
+  const match =
+    email
+      .toLowerCase()
+      .match(
+        /^(\d+)@students\.swinburne\.edu\.my$/
+      );
+
+
+  return (
+    match?.[1] ??
+    null
+  );
+
 }

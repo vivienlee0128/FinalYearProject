@@ -23,7 +23,8 @@ export async function generateAttendancePdf(
 
   const result =
     await Print.printToFileAsync({
-      html
+      html,
+      base64: false,
     });
 
   console.log(
