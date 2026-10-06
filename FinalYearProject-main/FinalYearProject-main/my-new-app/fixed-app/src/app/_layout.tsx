@@ -77,6 +77,13 @@ function Navigation() {
           }}
         />
 
+        <Stack.Screen
+          name="scan"
+          options={{
+            title: 'Scan QR Code',
+          }}
+        />
+
       </Stack.Protected>
 
       <Stack.Screen

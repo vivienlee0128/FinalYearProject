@@ -1,0 +1,505 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "attendance-demo",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "cd271771-e8f5-49bd-82c8-bcc2492c7d55",
+      "name": "Webhook",
+      "webhookId": "02f94b6d-1de6-4c7e-8a01-636c2c5feec0"
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhook =\n  $('Webhook').first().json;\n\nconst sisId =\n  webhook.query?.sis_id;\n\nreturn [\n  {\n    json: {\n      receivedSisId: sisId ?? null,\n      query: webhook.query\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "ae4efd69-3b55-4ccb-b080-36064635f8ef",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "url": "https://au.qwickly.tools/api/dashboard/v1/user/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpBearerAuth",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "paginationMode": "responseContainsNextURL",
+              "nextURL": "={{ $response.body.next }}",
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.next === null }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        448,
+        0
+      ],
+      "id": "aa3e1661-2ea2-4b4a-af13-36757c3aa63b",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "u7bCCiWLiefkr4CO",
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        896,
+        0
+      ],
+      "id": "477d3ff7-b570-4e25-a002-bae5579011bc",
+      "name": "Respond to Webhook",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const pages = $input.all();\n\nconst targetSisId =\n  $('Code in JavaScript').first().json.receivedSisId;\n\nif (!targetSisId) {\n  throw new Error('Student SIS ID was not received from the webhook');\n}\n\nlet student = null;\n\nfor (const page of pages) {\n  const users = page.json.results ?? [];\n\n  student = users.find(\n    user => String(user.sis_id) === String(targetSisId)\n  );\n\n  if (student) {\n    break;\n  }\n}\n\nif (!student) {\n  return [\n    {\n      json: {\n        found: false,\n        sisId: targetSisId,\n        pagesSearched: pages.length\n      }\n    }\n  ];\n}\n\nreturn [\n  {\n    json: {\n      found: true,\n      student: {\n        qwicklyId: student.id,\n        firstName: student.first_name,\n        lastName: student.last_name,\n        email: student.email,\n        sisId: student.sis_id,\n        lmsId: student.lms_id\n      },\n      pagesSearched: pages.length\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "ad972208-5131-455c-93a4-39b6063cd2e6",
+      "name": "Find ID"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        416,
+        224
+      ],
+      "id": "d30c9e26-0a4d-4752-bc48-cdb0e4829d16",
+      "name": "Respond to Webhook1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const sisId = $json.query?.sis_id;\n\nif (!sisId) {\n  return [\n    {\n      json: {\n        success: false,\n        error: 'Missing sis_id'\n      }\n    }\n  ];\n}\n\n// MOCK / EMULATED STUDENT PROFILE DATA\nconst students = [\n  {\n    sisId: '104404156',\n    fullName: 'Fredly Benny Anak Vilen',\n    email: '104404156@students.swinburne.edu.my',\n    programme: 'Bachelor of Computer Science',\n    studyStatus: 'Active',\n\n    visa: {\n      status: 'Active',\n      expiryDate: '2027-03-15',\n      passportExpiryDate: '2028-08-20'\n    }\n  },\n\n  // Test student\n  {\n    sisId: '100000001',\n    fullName: 'Test Student',\n    email: '100000001@students.swinburne.edu.my',\n    programme: 'Bachelor of Computer Science',\n    studyStatus: 'Active',\n\n    visa: {\n      status: 'Active',\n      expiryDate: '2027-06-30',\n      passportExpiryDate: '2029-01-15'\n    }\n  }\n];\n\nconst student = students.find(\n  s => s.sisId === String(sisId)\n);\n\nif (!student) {\n  return [\n    {\n      json: {\n        success: false,\n        error: 'Student profile not found',\n        sisId: String(sisId)\n      }\n    }\n  ];\n}\n\nreturn [\n  {\n    json: {\n      success: true,\n      student\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        224
+      ],
+      "id": "6dacf93f-e481-464b-b04b-c5e3f14553be",
+      "name": "Student Profile Emulation",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "path": "student-profile",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        224
+      ],
+      "id": "1a7b7daf-4089-49f2-850a-fc9a91c6a679",
+      "name": "Webhook1",
+      "webhookId": "a64e9760-5b61-46e3-901f-50bfddf04c18",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "url": "https://au.qwickly.tools/api/dashboard/v1/course/lms_id%3A2244/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpBearerAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "include[]",
+              "value": "course_enrollments"
+            },
+            {
+              "name": "include[]",
+              "value": "course_statistics"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        432,
+        -256
+      ],
+      "id": "0406199e-029c-49d4-9377-f8cf80f710b7",
+      "name": "HTTP Request1",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "u7bCCiWLiefkr4CO",
+          "name": "Bearer Auth account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const sisId = $json.query?.sis_id;\n\nif (!sisId) {\n  throw new Error('Missing sis_id');\n}\n\n// Temporary FYP data.\n// Student Profile API is emulated.\n// Attendance data will later come from Qwickly.\n\nconst students = {\n  '104404156': {\n    sisId: '104404156',\n    name: 'Fredly Benny Anak Vilen',\n    programme: 'Bachelor of Computer Science',\n\n    attendance: [\n      {\n        intake: 'Semester 2, 2026',\n        percentage: 87\n      }\n    ]\n  }\n};\n\nconst student = students[String(sisId)];\n\nif (!student) {\n  throw new Error('Student not found');\n}\n\nfunction attendanceStatus(percentage) {\n  if (percentage >= 80) return 'Good';\n  if (percentage >= 40) return 'Fair';\n  if (percentage >= 1) return 'Poor';\n\n  return 'Nil';\n}\n\nconst attendance = student.attendance.map(item => ({\n  ...item,\n  status: attendanceStatus(item.percentage)\n}));\n\nconst now = new Date();\n\nconst formattedDate = new Intl.DateTimeFormat('en-GB', {\n  day: 'numeric',\n  month: 'long',\n  year: 'numeric'\n}).format(now);\n\nreturn [\n  {\n    json: {\n      success: true,\n\n      student: {\n        sisId: student.sisId,\n        name: student.name,\n        programme: student.programme\n      },\n\n      report: {\n        reference: `ATT/${student.sisId}/${now.getFullYear()}`,\n        date: formattedDate,\n        period: 'Semester 2, 2026'\n      },\n\n      attendance\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        384
+      ],
+      "id": "70e86d85-0e57-470a-9116-e329fe602213",
+      "name": "Prepare Data",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "html": "const data = $json;\n\nconst student = data.student;\nconst report = data.report;\nconst attendance = data.attendance;\n\nconst rows = attendance.map(item => `\n  <tr>\n    <td>${item.intake}</td>\n    <td>${item.status}</td>\n    <td>${item.percentage}%</td>\n  </tr>\n`).join('');\n\nconst html = `\n<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n\n<style>\n\n@page {\n  size: A4;\n  margin: 20mm 20mm 20mm 20mm;\n}\n\n* {\n  box-sizing: border-box;\n}\n\nbody {\n  font-family: Arial, Helvetica, sans-serif;\n  font-size: 11pt;\n  line-height: 1.5;\n  color: #000;\n  margin: 0;\n}\n\n.header {\n  width: 100%;\n  margin-bottom: 35px;\n}\n\n.logo {\n  text-align: right;\n}\n\n.logo-placeholder {\n  display: inline-block;\n  width: 180px;\n  height: 55px;\n  border: 1px dashed #999;\n  text-align: center;\n  line-height: 55px;\n  font-size: 10px;\n  color: #777;\n}\n\n.document-info {\n  margin-top: 20px;\n}\n\n.document-info p {\n  margin: 2px 0;\n}\n\n.title {\n  margin-top: 35px;\n  font-weight: bold;\n}\n\n.report-title {\n  font-weight: bold;\n  text-transform: uppercase;\n  margin-top: 20px;\n  margin-bottom: 25px;\n}\n\n.student-info {\n  margin-bottom: 25px;\n}\n\n.student-info table {\n  border-collapse: collapse;\n}\n\n.student-info td {\n  padding: 3px 15px 3px 0;\n}\n\n.student-info .label {\n  font-weight: bold;\n  width: 130px;\n}\n\n.attendance-table {\n  width: 100%;\n  border-collapse: collapse;\n  margin-top: 20px;\n}\n\n.attendance-table th,\n.attendance-table td {\n  border: 1px solid #000;\n  padding: 8px;\n  text-align: center;\n}\n\n.attendance-table th {\n  font-weight: bold;\n}\n\n.description {\n  margin-top: 25px;\n}\n\n.key-table {\n  width: 55%;\n  border-collapse: collapse;\n  margin-top: 10px;\n}\n\n.key-table th,\n.key-table td {\n  border: 1px solid #000;\n  padding: 6px 10px;\n}\n\n.key-table th {\n  text-align: left;\n}\n\n.closing {\n  margin-top: 35px;\n}\n\n.signature {\n  margin-top: 50px;\n}\n\n.footer {\n  margin-top: 55px;\n  font-size: 9pt;\n}\n\n</style>\n</head>\n\n<body>\n\n<div class=\"header\">\n\n  <div class=\"logo\">\n    <div class=\"logo-placeholder\">\n      SWINBURNE LOGO\n    </div>\n  </div>\n\n  <div class=\"document-info\">\n    <p><strong>Ref:</strong> ${report.reference}</p>\n    <p><strong>Date:</strong> ${report.date}</p>\n  </div>\n\n</div>\n\n<div class=\"title\">\n  TO WHOM IT MAY CONCERN\n</div>\n\n<div class=\"report-title\">\n  ATTENDANCE REPORT FOR ${student.name}\n</div>\n\n<div class=\"student-info\">\n\n  <table>\n\n    <tr>\n      <td class=\"label\">Student ID</td>\n      <td>: ${student.sisId}</td>\n    </tr>\n\n    <tr>\n      <td class=\"label\">Programme</td>\n      <td>: ${student.programme}</td>\n    </tr>\n\n    <tr>\n      <td class=\"label\">Period</td>\n      <td>: ${report.period}</td>\n    </tr>\n\n  </table>\n\n</div>\n\n<p>\nThe attendance record for the above student is shown below:\n</p>\n\n<table class=\"attendance-table\">\n\n  <thead>\n    <tr>\n      <th>Intake</th>\n      <th>Overall Attendance</th>\n      <th>Percentages (%)</th>\n    </tr>\n  </thead>\n\n  <tbody>\n    ${rows}\n  </tbody>\n\n</table>\n\n<div class=\"description\">\n\n  <p><strong>Attendance Classification:</strong></p>\n\n  <table class=\"key-table\">\n\n    <thead>\n      <tr>\n        <th>Attendance</th>\n        <th>Percentage (%)</th>\n      </tr>\n    </thead>\n\n    <tbody>\n\n      <tr>\n        <td>Good</td>\n        <td>80 - 100</td>\n      </tr>\n\n      <tr>\n        <td>Fair</td>\n        <td>40 - 79</td>\n      </tr>\n\n      <tr>\n        <td>Poor</td>\n        <td>1 - 39</td>\n      </tr>\n\n      <tr>\n        <td>Nil</td>\n        <td>0</td>\n      </tr>\n\n    </tbody>\n\n  </table>\n\n</div>\n\n<div class=\"closing\">\n\n  <p>\n    This report is generated based on the attendance information\n    available in the Smart Attendance System.\n  </p>\n\n</div>\n\n<div class=\"signature\">\n\n  <p>Yours sincerely,</p>\n\n  <br><br>\n\n  <p>\n    <strong>____________________________</strong><br>\n    Authorised Officer<br>\n    Swinburne University of Technology Sarawak Campus\n  </p>\n\n</div>\n\n<div class=\"footer\">\n\n  <hr>\n\n  <p>\n    Swinburne University of Technology Sarawak Campus\n  </p>\n\n</div>\n\n</body>\n</html>\n`;\n\nreturn [\n  {\n    json: {\n      ...data,\n      html\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        192,
+        592
+      ],
+      "id": "d0026a2d-2ac6-4eed-9cc9-61da21eec540",
+      "name": "HTML",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "html_content": "{{ $json.html }}"
+      },
+      "type": "n8n-nodes-htmlcsstopdf.htmlcsstopdf",
+      "typeVersion": 1,
+      "position": [
+        672,
+        656
+      ],
+      "id": "9d43c41f-32b4-4deb-b39f-96495511e2b1",
+      "name": "Convert HTML to PDF",
+      "credentials": {
+        "htmlcsstopdfApi": {
+          "id": "iwaQUe5LVvcupoeL",
+          "name": "HTML to PDF account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "path": "attendance-report",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        672,
+        384
+      ],
+      "id": "484206f9-6808-4148-aab3-3a529bad1f2d",
+      "name": "Webhook2",
+      "webhookId": "5008269a-ed7e-4e12-aee0-f24c487766f1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "url": "https://au.qwickly.tools/api/dashboard/v1/course/lms_id%3A2244/session/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpBearerAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1088,
+        384
+      ],
+      "id": "43c4d19c-beea-4549-be6c-b454fb3bc7b3",
+      "name": "Get Session",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "u7bCCiWLiefkr4CO",
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sessions = $json.results ?? [];\n\nreturn sessions.map(session => ({\n  json: {\n    sessionId: session.id,\n    title: session.title,\n    startTime: session.start_time,\n    method: session.method,\n    groupId: session.group_id,\n    sectionId: session.section_id\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1296,
+        384
+      ],
+      "id": "21f9db87-e6f2-4c29-8703-83484a4987c5",
+      "name": "Split Data"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://au.qwickly.tools/api/dashboard/v1/course/lms_id%3A2244/session/' + $json.sessionId + '/record/' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpBearerAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1504,
+        384
+      ],
+      "id": "a2c43d36-bf23-4cbe-8995-d76c89fb1cf7",
+      "name": "Get Session Records",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "u7bCCiWLiefkr4CO",
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://au.qwickly.tools/api/dashboard/v1/course/lms_id%3A2244/status/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpBearerAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1520,
+        592
+      ],
+      "id": "a0649501-5b7d-4a93-918f-2e0d841d6d27",
+      "name": "Get Attendance Status",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "u7bCCiWLiefkr4CO",
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Student found earlier from SIS ID\nconst studentResult =\n  $('Find ID').first().json;\n\nif (!studentResult?.found) {\n  throw new Error(\n    'Qwickly student could not be found'\n  );\n}\n\nconst qwicklyUserId =\n  Number(studentResult.student.qwicklyId);\n\n\n// All session-record API responses\nconst sessionResponses =\n  $('Get Session Records').all();\n\n\n// Qwickly attendance statuses\nconst statusItems =\n  $('Get Attendance Statuses').all();\n\n\n// Depending on how the HTTP node returns the array,\n// flatten the status data.\nlet statuses = [];\n\nfor (const item of statusItems) {\n\n  if (Array.isArray(item.json)) {\n    statuses.push(...item.json);\n  } else {\n    statuses.push(item.json);\n  }\n\n}\n\n\nfunction getStatus(statusId) {\n\n  return statuses.find(\n    status =>\n      Number(status.id) ===\n      Number(statusId)\n  );\n\n}\n\n\nconst records = [];\n\nlet present = 0;\nlet absent = 0;\nlet excused = 0;\n\n\n// Process every Qwickly session\nfor (const sessionResponse of sessionResponses) {\n\n  const sessionRecords =\n    sessionResponse.json.results ?? [];\n\n\n  // Find this student's record\n  const studentRecord =\n    sessionRecords.find(\n      record =>\n        Number(record.user_id) ===\n        qwicklyUserId\n    );\n\n\n  // Student has no record for this session\n  if (!studentRecord) {\n\n    records.push({\n      sessionId:\n        sessionRecords[0]?.parent_session\n        ?? null,\n\n      status: 'No Record'\n    });\n\n    continue;\n  }\n\n\n  const status =\n    getStatus(studentRecord.status_id);\n\n\n  const statusName =\n    status?.name ?? 'Unknown';\n\n\n  if (statusName === 'Present') {\n    present++;\n  }\n\n  else if (statusName === 'Absent') {\n    absent++;\n  }\n\n  else if (statusName === 'Excused') {\n    excused++;\n  }\n\n\n  records.push({\n\n    sessionId:\n      studentRecord.parent_session,\n\n    recordId:\n      studentRecord.id,\n\n    statusId:\n      studentRecord.status_id,\n\n    status:\n      statusName,\n\n    points:\n      status?.points ?? null,\n\n    absence:\n      status?.absence ?? null,\n\n    timeCreated:\n      studentRecord.time_created,\n\n    method:\n      studentRecord.mobile_data?.method\n      ?? null\n\n  });\n\n}\n\n\n// Excused is currently excluded because\n// Qwickly returned null points/absence for it.\nconst countedSessions =\n  present + absent;\n\n\nconst percentage =\n  countedSessions > 0\n    ? Math.round(\n        (present / countedSessions) * 100\n      )\n    : null;\n\n\nreturn [\n  {\n    json: {\n\n      student: {\n        qwicklyId:\n          qwicklyUserId,\n\n        sisId:\n          studentResult.student.sisId,\n\n        name:\n          `${studentResult.student.firstName} ${studentResult.student.lastName}`\n      },\n\n      attendance: {\n\n        totalSessions:\n          sessionResponses.length,\n\n        countedSessions,\n\n        present,\n\n        absent,\n\n        excused,\n\n        percentage\n\n      },\n\n      records\n\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1728,
+        592
+      ],
+      "id": "8552a98f-30cd-432f-b217-a33fb96e9688",
+      "name": "Analyse Code"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Find ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find ID": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Session",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Attendance Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Student Profile Emulation": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Student Profile Emulation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Data": {
+      "main": [
+        [
+          {
+            "node": "Get Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML": {
+      "main": [
+        [
+          {
+            "node": "Convert HTML to PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook2": {
+      "main": [
+        [
+          {
+            "node": "Prepare Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Session": {
+      "main": [
+        [
+          {
+            "node": "Split Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Data": {
+      "main": [
+        [
+          {
+            "node": "Get Session Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Attendance Status": {
+      "main": [
+        [
+          {
+            "node": "Analyse Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Session Records": {
+      "main": [
+        [
+          {
+            "node": "Analyse Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "fda59a4f-f298-40d0-b126-c5a175ab8d80",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "aeffc4f217bbb902eb3b90dd47a9269e7c540bc504a3456abd7af7a4a4676388"
+  },
+  "id": "DxyYaKMXdHyS7QxN",
+  "tags": []
+}

@@ -120,7 +120,21 @@ export default function HomeScreen() {
         </Text>
       </TouchableOpacity>
 
-        
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() =>
+            router.push('/scan')
+          }
+        >
+          <Text style={styles.cardTitle}>
+            Scan QR Code
+          </Text>
+
+          <Text style={styles.cardDescription}>
+            Scan a QR code to perform a specific action.
+          </Text>
+        </TouchableOpacity>
+
     </View>
   );
 }
