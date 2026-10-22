@@ -1,0 +1,15 @@
+{
+  "build": {
+    "demo": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_DEMO_MODE": "true",
+        "EXPO_PUBLIC_N8N_URL": "https://fyp-workflow.swin.click"
+      }
+    },
+    "production": {}
+  }
+}
