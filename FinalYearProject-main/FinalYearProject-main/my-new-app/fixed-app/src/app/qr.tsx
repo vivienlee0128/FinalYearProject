@@ -22,6 +22,36 @@ import {
 } from "react-native";
 
 
+// ============================================
+// QWICKLY QR STRUCTURE
+// ============================================
+
+interface ParsedQwicklyQR {
+  // raw: string;
+
+  // // Confirmed from our Qwickly course:
+  // // 2244 = LMS course ID
+  // courseLmsId: string;
+
+  // // Meaning not confirmed yet.
+  // value2: string;
+  // value3: string;
+
+  raw: string;
+
+  // Confirmed Qwickly/Canvas course LMS ID
+  courseLmsId: string;
+
+  // Stable during one active attendance check-in.
+  // Exact Qwickly field name still needs verification.
+  checkInId: string;
+
+  // Changes while the same check-in remains active.
+  // Exact purpose/algorithm still needs verification.
+  rotatingValue: string;
+}
+
+
 export default function ScanQRScreen() {
 
   const router = useRouter();
@@ -41,8 +71,12 @@ export default function ScanQRScreen() {
     setQrPayload,
   ] = useState<string | null>(null);
 
-  const scanInFlight =
-    useRef(false);
+  const [
+    parsedQR,
+    setParsedQR,
+  ] = useState<ParsedQwicklyQR | null>(null);
+
+  const scanInFlight = useRef(false);
 
 
   // ==========================================
@@ -53,35 +87,24 @@ export default function ScanQRScreen() {
 
     return (
 
-      <View
-        style={
-          styles.centeredContainer
-        }
-      >
+      <View style={styles.centeredContainer}>
 
-        <Text
-          style={
-            styles.notSupportedText
-          }
-        >
-          QR attendance scanning should
-          be tested on a physical Android
-          or iOS device.
+        <Text style={styles.permissionTitle}>
+          QR Scanner
         </Text>
 
+        <Text style={styles.notSupportedText}>
+          QR attendance scanning should be
+          tested on a physical Android or iOS
+          device.
+        </Text>
 
         <TouchableOpacity
           style={styles.darkButton}
-          onPress={() =>
-            router.back()
-          }
+          onPress={() => router.back()}
         >
 
-          <Text
-            style={
-              styles.darkButtonText
-            }
-          >
+          <Text style={styles.darkButtonText}>
             Go Back
           </Text>
 
@@ -102,21 +125,11 @@ export default function ScanQRScreen() {
 
     return (
 
-      <View
-        style={
-          styles.centeredContainer
-        }
-      >
+      <View style={styles.centeredContainer}>
 
-        <ActivityIndicator
-          size="large"
-        />
+        <ActivityIndicator size="large" />
 
-        <Text
-          style={
-            styles.permissionText
-          }
-        >
+        <Text style={styles.permissionText}>
           Checking camera permission...
         </Text>
 
@@ -135,29 +148,17 @@ export default function ScanQRScreen() {
 
     return (
 
-      <View
-        style={
-          styles.centeredContainer
-        }
-      >
+      <View style={styles.centeredContainer}>
 
-        <Text
-          style={styles.permissionTitle}
-        >
+        <Text style={styles.permissionTitle}>
           Camera Permission Required
         </Text>
 
-
-        <Text
-          style={
-            styles.permissionText
-          }
-        >
-          Camera access is required to
-          scan the lecturer&apos;s
-          attendance QR code.
+        <Text style={styles.permissionText}>
+          Camera access is required to scan
+          the lecturer&apos;s attendance QR
+          code.
         </Text>
-
 
         <TouchableOpacity
           style={styles.darkButton}
@@ -166,11 +167,7 @@ export default function ScanQRScreen() {
           }
         >
 
-          <Text
-            style={
-              styles.darkButtonText
-            }
-          >
+          <Text style={styles.darkButtonText}>
             Grant Camera Permission
           </Text>
 
@@ -179,6 +176,120 @@ export default function ScanQRScreen() {
       </View>
 
     );
+
+  }
+
+
+  // ==========================================
+  // QWICKLY QR PARSER
+  // ==========================================
+
+  function parseQwicklyQR(
+    data: string
+  ): ParsedQwicklyQR | null {
+
+    try {
+
+      const url = new URL(data);
+
+      // Only accept the known Qwickly
+      // attendance check-in URL.
+      if (
+        url.hostname.toLowerCase() !==
+          "www.qwickly.tools" ||
+        url.pathname !== "/checkin"
+      ) {
+
+        return null;
+
+      }
+
+
+      const id =
+        url.searchParams.get("id");
+
+
+      if (!id) {
+
+        return null;
+
+      }
+
+
+      /*
+       * Real QR observed:
+       *
+       * https://www.qwickly.tools/checkin
+       * ?id=2244|57667|194358
+       *
+       * Confirmed:
+       * 2244 = Course LMS ID
+       *
+       * value2/value3 remain intentionally
+       * unnamed until their meaning is
+       * confirmed.
+       */
+
+      const parts = id.split("|");
+
+
+      if (parts.length !== 3) {
+
+        return null;
+
+      }
+
+
+      const [
+        courseLmsId,
+        checkInId,
+        rotatingValue,
+      ] = parts;
+
+
+      if (
+        !courseLmsId ||
+        !checkInId ||
+        !rotatingValue
+      ) {
+
+        return null;
+
+      }
+
+
+      // Current observed values are numeric.
+      // Reject malformed QR values.
+      if (
+        !/^\d+$/.test(courseLmsId) ||
+        !/^\d+$/.test(checkInId) ||
+        !/^\d+$/.test(rotatingValue)
+      ) {
+
+        return null;
+
+      }
+
+
+      return {
+
+        raw: data,
+        courseLmsId,
+        checkInId,
+        rotatingValue,
+
+      };
+
+    } catch (error) {
+
+      console.log(
+        "[QR] Failed to parse QR:",
+        error
+      );
+
+      return null;
+
+    }
 
   }
 
@@ -195,23 +306,24 @@ export default function ScanQRScreen() {
       scanned ||
       scanInFlight.current
     ) {
+
       return;
+
     }
 
 
     scanInFlight.current = true;
 
 
-    const data =
-      result.data;
+    const data = result.data;
 
 
     console.log(
-      "=============================="
+      "================================"
     );
 
     console.log(
-      "[QR] QR CODE DETECTED"
+      "[QR] QR CODE SCANNED"
     );
 
     console.log(
@@ -220,26 +332,66 @@ export default function ScanQRScreen() {
     );
 
     console.log(
-      "[QR] Raw payload:"
-    );
-
-    console.log(
-      data
-    );
-
-    console.log(
       "[QR] Length:",
       data.length
     );
 
     console.log(
-      "=============================="
+      "[QR] Raw payload:"
+    );
+
+    console.log(data);
+
+
+    // ----------------------------------------
+    // Parse Qwickly QR
+    // ----------------------------------------
+
+    const parsed =
+      parseQwicklyQR(data);
+
+
+    if (parsed) {
+
+      console.log(
+        "[QR] Valid Qwickly QR"
+      );
+
+      console.log(
+        "[QR] Course LMS ID:",
+        parsed.courseLmsId
+      );
+
+      console.log(
+        "[QR] Value 2:",
+        parsed.checkInId
+      );
+
+      console.log(
+        "[QR] Value 3:",
+        parsed.rotatingValue
+      );
+
+    } else {
+
+      console.log(
+        "[QR] Not a recognised Qwickly QR"
+      );
+
+    }
+
+
+    console.log(
+      "================================"
     );
 
 
     setQrPayload(data);
 
+    setParsedQR(parsed);
+
     setScanned(true);
+
 
     scanInFlight.current = false;
 
@@ -255,6 +407,8 @@ export default function ScanQRScreen() {
     scanInFlight.current = false;
 
     setQrPayload(null);
+
+    setParsedQR(null);
 
     setScanned(false);
 
@@ -278,29 +432,33 @@ export default function ScanQRScreen() {
         }
       >
 
+        {/* RESULT ICON */}
+
         <View
-          style={
-            styles.successIcon
-          }
+          style={[
+            styles.resultIcon,
+
+            parsedQR
+              ? styles.validIcon
+              : styles.invalidIcon,
+          ]}
         >
 
-          <Text
-            style={
-              styles.successIconText
-            }
-          >
-            ✓
+          <Text style={styles.resultIconText}>
+            {parsedQR ? "✓" : "!"}
           </Text>
 
         </View>
 
 
-        <Text
-          style={
-            styles.resultTitle
-          }
-        >
-          QR Code Detected
+        {/* RESULT TITLE */}
+
+        <Text style={styles.resultTitle}>
+
+          {parsedQR
+            ? "Qwickly QR Detected"
+            : "Unrecognised QR"}
+
         </Text>
 
 
@@ -309,64 +467,152 @@ export default function ScanQRScreen() {
             styles.resultDescription
           }
         >
-          The QR code was read
-          successfully.
+
+          {parsedQR
+            ? "The Qwickly attendance QR code was read successfully."
+            : "The QR code was scanned, but it does not match the expected Qwickly attendance format."}
+
         </Text>
 
 
-        {/* IMPORTANT WARNING */}
+        {/* DEVELOPMENT WARNING */}
 
-        <View
-          style={
-            styles.warningCard
-          }
-        >
+        <View style={styles.warningCard}>
 
-          <Text
-            style={
-              styles.warningTitle
-            }
-          >
+          <Text style={styles.warningTitle}>
             Development Mode
           </Text>
 
-
-          <Text
-            style={
-              styles.warningText
-            }
-          >
+          <Text style={styles.warningText}>
             This QR code has NOT been
             submitted to Qwickly or n8n.
-            We are only inspecting its
-            raw contents.
+            We are only inspecting and
+            validating its contents.
           </Text>
 
         </View>
 
 
-        {/* QR INFORMATION */}
+        {/* QWICKLY INFORMATION */}
 
-        <View
-          style={
-            styles.card
-          }
-        >
+        {parsedQR && (
 
-          <Text
-            style={
-              styles.cardLabel
-            }
-          >
-            QR Type
+          <View style={styles.card}>
+
+            <Text style={styles.sectionTitle}>
+              Qwickly QR Information
+            </Text>
+
+
+            <View style={styles.infoRow}>
+
+              <Text style={styles.cardLabel}>
+                Course LMS ID
+              </Text>
+
+              <Text
+                selectable
+                style={styles.infoValue}
+              >
+                {parsedQR.courseLmsId}
+              </Text>
+
+            </View>
+
+
+            <View style={styles.divider} />
+
+
+            <View style={styles.infoRow}>
+
+              <Text style={styles.cardLabel}>
+                Check-in ID
+              </Text>
+
+              <Text
+                selectable
+                style={styles.infoValue}
+              >
+                {parsedQR.checkInId}
+              </Text>
+
+            </View>
+
+
+            <View style={styles.divider} />
+
+
+            <View style={styles.infoRow}>
+
+              <Text style={styles.cardLabel}>
+                Rotating Value
+              </Text>
+
+              <Text
+                selectable
+                style={styles.infoValue}
+              >
+                {parsedQR.rotatingValue}
+              </Text>
+
+            </View>
+
+
+            <Text style={styles.unconfirmedText}>
+              Check-in ID and Rotating Value have not
+              been identified yet.
+            </Text>
+
+          </View>
+
+        )}
+
+
+        {/* INVALID QR */}
+
+        {!parsedQR && (
+
+          <View style={styles.invalidCard}>
+
+            <Text style={styles.invalidTitle}>
+              Invalid Attendance QR
+            </Text>
+
+            <Text style={styles.invalidText}>
+              This QR code does not match
+              the expected Qwickly format.
+            </Text>
+
+            <Text style={styles.expectedLabel}>
+              Expected format:
+            </Text>
+
+            <Text
+              selectable
+              style={styles.expectedFormat}
+            >
+              https://www.qwickly.tools/checkin?id=COURSE|VALUE2|VALUE3
+            </Text>
+
+          </View>
+
+        )}
+
+
+        {/* RAW QR INFORMATION */}
+
+        <View style={styles.card}>
+
+          <Text style={styles.sectionTitle}>
+            Raw QR Information
           </Text>
 
 
-          <Text
-            style={
-              styles.cardValue
-            }
-          >
+          <Text style={styles.cardLabel}>
+            QR Type
+          </Text>
+
+          <Text style={styles.cardValue}>
             QR Code
           </Text>
 
@@ -381,17 +627,11 @@ export default function ScanQRScreen() {
           </Text>
 
 
-          <View
-            style={
-              styles.payloadBox
-            }
-          >
+          <View style={styles.payloadBox}>
 
             <Text
               selectable
-              style={
-                styles.payloadText
-              }
+              style={styles.payloadText}
             >
               {qrPayload}
             </Text>
@@ -399,15 +639,9 @@ export default function ScanQRScreen() {
           </View>
 
 
-          <Text
-            style={
-              styles.lengthText
-            }
-          >
-            Payload length:
-            {" "}
-            {qrPayload.length}
-            {" "}
+          <Text style={styles.lengthText}>
+            Payload length:{" "}
+            {qrPayload.length}{" "}
             characters
           </Text>
 
@@ -417,19 +651,11 @@ export default function ScanQRScreen() {
         {/* SCAN AGAIN */}
 
         <TouchableOpacity
-          style={
-            styles.darkButton
-          }
-          onPress={
-            scanAgain
-          }
+          style={styles.darkButton}
+          onPress={scanAgain}
         >
 
-          <Text
-            style={
-              styles.darkButtonText
-            }
-          >
+          <Text style={styles.darkButtonText}>
             Scan Another QR
           </Text>
 
@@ -439,9 +665,7 @@ export default function ScanQRScreen() {
         {/* BACK */}
 
         <TouchableOpacity
-          style={
-            styles.outlineButton
-          }
+          style={styles.outlineButton}
           onPress={() =>
             router.back()
           }
@@ -470,71 +694,55 @@ export default function ScanQRScreen() {
 
   return (
 
-    <View
-      style={
-        styles.container
-      }
-    >
+    <View style={styles.container}>
 
       <CameraView
-        style={
-          styles.camera
-        }
+
+        style={styles.camera}
+
         facing="back"
+
         onBarcodeScanned={
           scanned
             ? undefined
             : handleBarCodeScanned
         }
+
         barcodeScannerSettings={{
           barcodeTypes: [
             "qr",
           ],
         }}
+
       />
 
 
-      {/* DARK OVERLAY */}
+      {/* DARK TOP OVERLAY */}
 
       <View
-        style={
-          styles.topOverlay
-        }
+        pointerEvents="none"
+        style={styles.topOverlay}
       />
 
 
+      {/* BOTTOM INFORMATION */}
+
       <View
-        style={
-          styles.bottomOverlay
-        }
+        pointerEvents="none"
+        style={styles.bottomOverlay}
       >
 
-
-        <Text
-          style={
-            styles.scanTitle
-          }
-        >
+        <Text style={styles.scanTitle}>
           Scan Attendance QR
         </Text>
 
-
-        <Text
-          style={
-            styles.hint
-          }
-        >
+        <Text style={styles.hint}>
           Point your camera at the
           lecturer&apos;s Qwickly
           attendance QR code.
         </Text>
 
-
-        <Text
-          style={
-            styles.developmentText
-          }
-        >
+        <Text style={styles.developmentText}>
           Development mode — QR will
           only be inspected.
         </Text>
@@ -546,16 +754,10 @@ export default function ScanQRScreen() {
 
       <View
         pointerEvents="none"
-        style={
-          styles.scanArea
-        }
+        style={styles.scanArea}
       >
 
-        <View
-          style={
-            styles.scanBox
-          }
-        >
+        <View style={styles.scanBox}>
 
           <View
             style={[
@@ -619,6 +821,10 @@ const styles =
 
     },
 
+
+    // ========================================
+    // CAMERA OVERLAY
+    // ========================================
 
     topOverlay: {
 
@@ -809,6 +1015,10 @@ const styles =
     },
 
 
+    // ========================================
+    // PERMISSIONS / WEB
+    // ========================================
+
     centeredContainer: {
 
       flex: 1,
@@ -864,11 +1074,17 @@ const styles =
     },
 
 
+    // ========================================
+    // RESULT
+    // ========================================
+
     resultContainer: {
 
       flexGrow: 1,
 
       padding: 24,
+
+      paddingBottom: 50,
 
       backgroundColor:
         "#f5f5f5",
@@ -879,16 +1095,13 @@ const styles =
     },
 
 
-    successIcon: {
+    resultIcon: {
 
       width: 70,
 
       height: 70,
 
       borderRadius: 35,
-
-      backgroundColor:
-        "#111111",
 
       justifyContent:
         "center",
@@ -901,7 +1114,23 @@ const styles =
     },
 
 
-    successIconText: {
+    validIcon: {
+
+      backgroundColor:
+        "#111111",
+
+    },
+
+
+    invalidIcon: {
+
+      backgroundColor:
+        "#8b0000",
+
+    },
+
+
+    resultIconText: {
 
       color: "#ffffff",
 
@@ -920,6 +1149,8 @@ const styles =
 
       marginTop: 20,
 
+      textAlign: "center",
+
     },
 
 
@@ -935,8 +1166,16 @@ const styles =
 
       textAlign: "center",
 
+      lineHeight: 20,
+
+      maxWidth: 600,
+
     },
 
+
+    // ========================================
+    // DEVELOPMENT WARNING
+    // ========================================
 
     warningCard: {
 
@@ -976,6 +1215,10 @@ const styles =
     },
 
 
+    // ========================================
+    // CARDS
+    // ========================================
+
     card: {
 
       width: "100%",
@@ -990,6 +1233,38 @@ const styles =
         "#ffffff",
 
       marginBottom: 20,
+
+    },
+
+
+    sectionTitle: {
+
+      fontSize: 17,
+
+      fontWeight: "700",
+
+      color: "#111111",
+
+      marginBottom: 18,
+
+    },
+
+
+    infoRow: {
+
+      paddingVertical: 4,
+
+    },
+
+
+    divider: {
+
+      height: 1,
+
+      backgroundColor:
+        "#eeeeee",
+
+      marginVertical: 12,
 
     },
 
@@ -1011,8 +1286,40 @@ const styles =
 
       marginTop: 3,
 
+      color: "#111111",
+
     },
 
+
+    infoValue: {
+
+      fontSize: 18,
+
+      fontWeight: "700",
+
+      marginTop: 4,
+
+      color: "#111111",
+
+    },
+
+
+    unconfirmedText: {
+
+      fontSize: 12,
+
+      color: "#777777",
+
+      lineHeight: 18,
+
+      marginTop: 18,
+
+    },
+
+
+    // ========================================
+    // RAW PAYLOAD
+    // ========================================
 
     payloadLabel: {
 
@@ -1056,6 +1363,82 @@ const styles =
 
     },
 
+
+    // ========================================
+    // INVALID QR
+    // ========================================
+
+    invalidCard: {
+
+      width: "100%",
+
+      maxWidth: 600,
+
+      padding: 18,
+
+      borderRadius: 12,
+
+      backgroundColor:
+        "#fff1f1",
+
+      marginBottom: 20,
+
+    },
+
+
+    invalidTitle: {
+
+      fontSize: 16,
+
+      fontWeight: "700",
+
+      color: "#8b0000",
+
+    },
+
+
+    invalidText: {
+
+      fontSize: 13,
+
+      color: "#555555",
+
+      lineHeight: 19,
+
+      marginTop: 6,
+
+    },
+
+
+    expectedLabel: {
+
+      fontSize: 12,
+
+      fontWeight: "600",
+
+      color: "#666666",
+
+      marginTop: 16,
+
+    },
+
+
+    expectedFormat: {
+
+      fontSize: 12,
+
+      color: "#111111",
+
+      lineHeight: 18,
+
+      marginTop: 5,
+
+    },
+
+
+    // ========================================
+    // BUTTONS
+    // ========================================
 
     darkButton: {
 

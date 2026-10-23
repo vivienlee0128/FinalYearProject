@@ -1,0 +1,215 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "attendance-demo",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "cd271771-e8f5-49bd-82c8-bcc2492c7d55",
+      "name": "Webhook",
+      "webhookId": "02f94b6d-1de6-4c7e-8a01-636c2c5feec0"
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhook =\n  $('Webhook').first().json;\n\nconst sisId =\n  webhook.query?.sis_id;\n\nreturn [\n  {\n    json: {\n      receivedSisId: sisId ?? null,\n      query: webhook.query\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "ae4efd69-3b55-4ccb-b080-36064635f8ef",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "url": "https://au.qwickly.tools/api/dashboard/v1/user/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpBearerAuth",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "paginationMode": "responseContainsNextURL",
+              "nextURL": "={{ $response.body.next }}",
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.next === null }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        448,
+        0
+      ],
+      "id": "aa3e1661-2ea2-4b4a-af13-36757c3aa63b",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "u7bCCiWLiefkr4CO",
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        896,
+        0
+      ],
+      "id": "477d3ff7-b570-4e25-a002-bae5579011bc",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const pages = $input.all();\n\nconst targetSisId =\n  $('Code in JavaScript').first().json.receivedSisId;\n\nif (!targetSisId) {\n  throw new Error('Student SIS ID was not received from the webhook');\n}\n\nlet student = null;\n\nfor (const page of pages) {\n  const users = page.json.results ?? [];\n\n  student = users.find(\n    user => String(user.sis_id) === String(targetSisId)\n  );\n\n  if (student) {\n    break;\n  }\n}\n\nif (!student) {\n  return [\n    {\n      json: {\n        found: false,\n        sisId: targetSisId,\n        pagesSearched: pages.length\n      }\n    }\n  ];\n}\n\nreturn [\n  {\n    json: {\n      found: true,\n      student: {\n        qwicklyId: student.id,\n        firstName: student.first_name,\n        lastName: student.last_name,\n        email: student.email,\n        sisId: student.sis_id,\n        lmsId: student.lms_id\n      },\n      pagesSearched: pages.length\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "ad972208-5131-455c-93a4-39b6063cd2e6",
+      "name": "Find ID"
+    },
+    {
+      "parameters": {
+        "path": "student-profile",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        224
+      ],
+      "id": "1a7b7daf-4089-49f2-850a-fc9a91c6a679",
+      "name": "Webhook1",
+      "webhookId": "a64e9760-5b61-46e3-901f-50bfddf04c18"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        416,
+        224
+      ],
+      "id": "d30c9e26-0a4d-4752-bc48-cdb0e4829d16",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const sisId = $json.query?.sis_id;\n\nif (!sisId) {\n  return [\n    {\n      json: {\n        success: false,\n        error: 'Missing sis_id'\n      }\n    }\n  ];\n}\n\n// MOCK / EMULATED STUDENT PROFILE DATA\nconst students = [\n  {\n    sisId: '104404156',\n    fullName: 'Fredly Benny Anak Vilen',\n    email: '104404156@students.swinburne.edu.my',\n    programme: 'Bachelor of Computer Science',\n    studyStatus: 'Active',\n\n    visa: {\n      status: 'Active',\n      expiryDate: '2027-03-15',\n      passportExpiryDate: '2028-08-20'\n    }\n  },\n\n  // Test student\n  {\n    sisId: '100000001',\n    fullName: 'Test Student',\n    email: '100000001@students.swinburne.edu.my',\n    programme: 'Bachelor of Computer Science',\n    studyStatus: 'Active',\n\n    visa: {\n      status: 'Active',\n      expiryDate: '2027-06-30',\n      passportExpiryDate: '2029-01-15'\n    }\n  }\n];\n\nconst student = students.find(\n  s => s.sisId === String(sisId)\n);\n\nif (!student) {\n  return [\n    {\n      json: {\n        success: false,\n        error: 'Student profile not found',\n        sisId: String(sisId)\n      }\n    }\n  ];\n}\n\nreturn [\n  {\n    json: {\n      success: true,\n      student\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        224
+      ],
+      "id": "6dacf93f-e481-464b-b04b-c5e3f14553be",
+      "name": "Student Profile Emulation"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Find ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find ID": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Student Profile Emulation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Student Profile Emulation": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "c919b6fe-210b-4cd0-a3cd-8d3632769ea9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "aeffc4f217bbb902eb3b90dd47a9269e7c540bc504a3456abd7af7a4a4676388"
+  },
+  "id": "DxyYaKMXdHyS7QxN",
+  "tags": []
+}

@@ -1,0 +1,141 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "attendance-demo",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "cd271771-e8f5-49bd-82c8-bcc2492c7d55",
+      "name": "Webhook",
+      "webhookId": "02f94b6d-1de6-4c7e-8a01-636c2c5feec0"
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhook =\n  $('Webhook').first().json;\n\nconst sisId =\n  webhook.query?.sis_id;\n\nreturn [\n  {\n    json: {\n      receivedSisId: sisId ?? null,\n      query: webhook.query\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "ae4efd69-3b55-4ccb-b080-36064635f8ef",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "url": "https://au.qwickly.tools/api/dashboard/v1/user/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpBearerAuth",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "paginationMode": "responseContainsNextURL",
+              "nextURL": "={{ $response.body.next }}",
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.next === null }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        416,
+        0
+      ],
+      "id": "aa3e1661-2ea2-4b4a-af13-36757c3aa63b",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "u7bCCiWLiefkr4CO",
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        832,
+        0
+      ],
+      "id": "477d3ff7-b570-4e25-a002-bae5579011bc",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const pages = $input.all();\n\nconst targetSisId =\n  $('Code in JavaScript').first().json.receivedSisId;\n\nif (!targetSisId) {\n  throw new Error('Student SIS ID was not received from the webhook');\n}\n\nlet student = null;\n\nfor (const page of pages) {\n  const users = page.json.results ?? [];\n\n  student = users.find(\n    user => String(user.sis_id) === String(targetSisId)\n  );\n\n  if (student) {\n    break;\n  }\n}\n\nif (!student) {\n  return [\n    {\n      json: {\n        found: false,\n        sisId: targetSisId,\n        pagesSearched: pages.length\n      }\n    }\n  ];\n}\n\nreturn [\n  {\n    json: {\n      found: true,\n      student: {\n        qwicklyId: student.id,\n        firstName: student.first_name,\n        lastName: student.last_name,\n        email: student.email,\n        sisId: student.sis_id,\n        lmsId: student.lms_id\n      },\n      pagesSearched: pages.length\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        0
+      ],
+      "id": "ad972208-5131-455c-93a4-39b6063cd2e6",
+      "name": "Find ID"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Find ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "9cd8254b-2385-4099-995b-0d2efca369e4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "aeffc4f217bbb902eb3b90dd47a9269e7c540bc504a3456abd7af7a4a4676388"
+  },
+  "id": "DxyYaKMXdHyS7QxN",
+  "tags": []
+}
