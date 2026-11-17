@@ -1,0 +1,19 @@
+import { Alert, Pressable, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { AppScaffold, Badge, BrandLogo, Card, Icon, SectionHeading, SecondaryButton, ui } from '../components/admin/UI';
+import { brand } from '../constants/brand';
+import { useAuth } from '../context/Auth';
+import { staffApiConfig } from '../services/staffApi';
+export default function MoreScreen(){
+ const router=useRouter();const {user,signOut}=useAuth();const status=staffApiConfig();
+ return <AppScaffold title="Workspace settings" eyebrow="Configuration" subtitle="Identity, integration status and responsible use of university data.">
+ <Card><View style={ui.spaceBetween}><View style={{flex:1,gap:5}}><Text style={ui.label}>SIGNED-IN ACCOUNT</Text><Text style={ui.listTitle}>{user?.name??'Not signed in'}</Text><Text style={ui.muted}>{user?.email??'No email'}</Text></View><Icon name="shield" size={30} color={brand.red}/></View><Badge tone={user?.method==='development'?'amber':'green'}>{user?.method==='development'?'EXPO GO PREVIEW':'MICROSOFT AUTHENTICATED'}</Badge><Text style={ui.muted}>Microsoft sign-in confirms identity. Backend staff role and course permissions must be verified separately before accessing live student records.</Text></Card>
+ <SectionHeading title="Integration status"/>
+ <Card><View style={ui.spaceBetween}><View style={{flex:1,gap:5}}><Text style={ui.listTitle}>n8n staff API</Text><Text style={ui.muted}>{status.reason}</Text></View><Badge tone={status.enabled?'green':'amber'}>{status.enabled?'CONFIGURED':'DEMO MODE'}</Badge></View><View style={ui.divider}/><Text style={ui.listTitle}>Qwickly integration</Text><Text style={ui.muted}>Qwickly remains the official attendance source. Expo calls only authorized n8n endpoints; Qwickly credentials are not stored in the app.</Text></Card>
+ <SectionHeading title="Tools"/>
+ <Pressable onPress={()=>router.push('/audit')}><Card><View style={ui.spaceBetween}><View style={{flex:1,gap:6}}><Text style={ui.listTitle}>Data reconciliation & audit</Text><Text style={ui.muted}>Inspect missing or mismatched records and sync failures.</Text></View><Icon name="arrow" color={brand.red}/></View></Card></Pressable>
+ <Pressable onPress={()=>router.push('/first-time-guide')}><Card><View style={ui.spaceBetween}><View style={{flex:1,gap:6}}><Text style={ui.listTitle}>How this FYP works</Text><Text style={ui.muted}>Read the staff-focused quick guide and project boundaries.</Text></View><Icon name="arrow" color={brand.red}/></View></Card></Pressable>
+ <Card><BrandLogo width={110}/><Text style={ui.muted}>Research prototype using Swinburne visual elements. Official deployment, branding approval, academic policy and live Qwickly access require university authorization.</Text></Card>
+ <SecondaryButton title="Sign out" icon="logout" onPress={()=>Alert.alert('Sign out','End the current session?',[{text:'Cancel',style:'cancel'},{text:'Sign out',style:'destructive',onPress:()=>void signOut()}])}/>
+ </AppScaffold>;
+}

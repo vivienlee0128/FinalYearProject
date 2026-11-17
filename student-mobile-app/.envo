@@ -1,0 +1,19 @@
+# STUDENT APP — public values only. Never put Qwickly or Microsoft client secrets here.
+# Use your existing approved Expo mobile client ID / tenant.
+EXPO_PUBLIC_MS_CLIENT_ID=6b15c6be-f7cc-4864-bedd-2910d798fa09
+EXPO_PUBLIC_MS_TENANT_ID=3f639a9b-27c8-4403-82b1-ebfb88052d15
+# Leave off until an approved student API scope is configured in Entra and validated by n8n.
+EXPO_PUBLIC_ENABLE_STUDENT_API_SCOPE=false
+EXPO_PUBLIC_MS_API_SCOPE=
+
+# DEMO mode: fictional semester/unit data is clearly labelled.
+EXPO_PUBLIC_STUDENT_DEMO_MODE=true
+# Optional n8n emulator attendance JSON endpoint (public/demo only, never official data).
+EXPO_PUBLIC_ATTENDANCE_V2_URL=
+# Existing lecturer QR DEMO scanning POST webhook. No official Qwickly writes.
+EXPO_PUBLIC_QR_ATTENDANCE_DEMO_URL=https://fyp-workflow.swin.click/webhook/fyp/qr-demo-v2-n8n-sso
+
+# FUTURE VERIFIED PRODUCTION: requires approved Entra delegated scope, n8n JWT
+# validation and server-side SIS ID derivation. Never configure until ready.
+EXPO_PUBLIC_STUDENT_ATTENDANCE_API_URL=
+EXPO_PUBLIC_STUDENT_CHECKIN_API_URL=

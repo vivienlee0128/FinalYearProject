@@ -1,0 +1,1 @@
+Archived source files from the original student QR prototype and unused Express/PostgreSQL server. They are NOT active Expo routes or backend services. The redesigned FYP uses n8n as the only backend, with Qwickly remaining the official attendance system. Files ending .tsx.txt are reference snapshots. Do not deploy old attendance-api without a separate security review.

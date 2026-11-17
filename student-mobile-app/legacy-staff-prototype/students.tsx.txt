@@ -1,0 +1,26 @@
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { AppScaffold, Badge, Card, EmptyState, ErrorNotice, Icon, ProgressBar, ui } from '../components/admin/UI';
+import { brand } from '../constants/brand';
+import { useAuth } from '../context/Auth';
+import { findStudents, StudentSummary } from '../services/staffApi';
+export default function StudentsScreen(){
+  const router=useRouter();const {getAccessToken}=useAuth();const [query,setQuery]=useState('');
+  const [students,setStudents]=useState<StudentSummary[]>([]);const [error,setError]=useState('');const [loading,setLoading]=useState(true);
+  useEffect(()=>{const ctrl=new AbortController();let active=true;setLoading(true);setError('');
+    const t=setTimeout(()=>{findStudents(query.trim(),getAccessToken,ctrl.signal).then(rows=>{if(active)setStudents(rows);}).catch(e=>{if(active)setError(e instanceof Error?e.message:'Unable to search students.');}).finally(()=>{if(active)setLoading(false);});},250);
+    return()=>{active=false;ctrl.abort();clearTimeout(t);};
+  },[query,getAccessToken]);
+  return <AppScaffold title="Student monitoring" eyebrow="Authorized search" subtitle="Review attendance trends and identify cases that need staff follow-up.">
+    <View style={{flexDirection:'row',alignItems:'center',gap:10,backgroundColor:'#fff',borderWidth:1,borderColor:brand.line,borderRadius:13,paddingHorizontal:13}}><Icon name="search" color={brand.muted}/><TextInput value={query} onChangeText={setQuery} placeholder="Search student name or SIS ID" placeholderTextColor={brand.mutedLight} autoCapitalize="none" style={{flex:1,paddingVertical:15,color:brand.ink,fontSize:14}}/></View>
+    <Text style={ui.muted}>{students.length} result{students.length===1?'':'s'} · Live student search requires at least 3 characters and staff authorization in n8n.</Text>
+    {loading&&<ActivityIndicator color={brand.red}/>}{!!error&&<ErrorNotice message={error}/>}
+    {!loading&&!error&&students.length===0&&<EmptyState title="No matching students" message="Try a different search. Demo accounts use fictional IDs beginning with 900000."/>}
+    {students.map(student=><Pressable key={student.sisId} onPress={()=>router.push({pathname:'/student-detail',params:{sisId:student.sisId}})}>
+      <Card><View style={ui.spaceBetween}><View style={{flex:1,gap:5}}><Text style={ui.listTitle}>{student.name}</Text><Text style={ui.muted}>{student.sisId} · {student.programme}</Text></View><Icon name="arrow" color={brand.muted}/></View>
+      <View style={ui.spaceBetween}><Text style={ui.label}>ATTENDANCE</Text><View style={{flexDirection:'row',alignItems:'center',gap:10}}><Badge tone={student.risk==='review'?'red':student.risk==='monitor'?'amber':'green'}>{student.risk==='review'?'REVIEW':student.risk==='monitor'?'MONITOR':'ON TRACK'}</Badge><Text style={{fontSize:17,fontWeight:'800'}}>{student.attendance===null?'N/A':`${student.attendance}%`}</Text></View></View><ProgressBar value={student.attendance} color={student.risk==='review'?brand.red:brand.positive}/>
+      </Card>
+    </Pressable>)}
+  </AppScaffold>;
+}

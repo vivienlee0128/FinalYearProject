@@ -1,0 +1,17 @@
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { AppScaffold, Badge, Card, EmptyState, ErrorNotice, Icon, SectionHeading, ui } from '../components/admin/UI';
+import { brand } from '../constants/brand';
+import { useAuth } from '../context/Auth';
+import { AuditIssue, listAudit } from '../services/staffApi';
+export default function AuditScreen(){
+ const {getAccessToken}=useAuth();const router=useRouter();const [issues,setIssues]=useState<AuditIssue[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [reload,setReload]=useState(0);
+ useEffect(()=>{let active=true;const ctrl=new AbortController();setLoading(true);setError('');listAudit(getAccessToken,ctrl.signal).then(rows=>{if(active)setIssues(rows)}).catch(e=>{if(active)setError(String(e instanceof Error?e.message:e))}).finally(()=>{if(active)setLoading(false)});return()=>{active=false;ctrl.abort()}},[getAccessToken,reload]);
+ return <AppScaffold title="Data quality" eyebrow="Reconciliation & audit" subtitle="Find discrepancies before university staff rely on attendance reports." action={<Pressable onPress={()=>setReload(v=>v+1)} style={{padding:12,backgroundColor:'#fff',borderRadius:12}}><Icon name="refresh" color={brand.red}/></Pressable>}>
+ <Card><Text style={ui.label}>UNRESOLVED ISSUES</Text><Text style={ui.largeNumber}>{issues.filter(i=>i.status==='open').length}</Text><Text style={ui.muted}>Requires a trusted comparison between Qwickly and authorized source records. Demo issues below are illustrative.</Text></Card>
+ <SectionHeading title="Discrepancy register"/>{loading&&<ActivityIndicator color={brand.red}/>} {!!error&&<ErrorNotice message={error}/>}{!loading&&!error&&issues.length===0&&<EmptyState title="No discrepancies reported" message="A configured n8n reconciliation workflow will surface validated data quality issues here."/>}
+ {issues.map(item=><Card key={item.id}><View style={ui.spaceBetween}><Text style={ui.label}>{item.id}</Text><Badge tone={item.severity==='high'?'red':'amber'}>{item.severity.toUpperCase()}</Badge></View><Text style={ui.listTitle}>{item.type} · {item.course}</Text><Text style={ui.muted}>{item.summary}</Text><View style={ui.spaceBetween}><Text style={ui.muted}>{new Date(item.raisedAt).toLocaleDateString()}</Text><Badge tone={item.status==='open'?'red':'green'}>{item.status.toUpperCase()}</Badge></View></Card>)}
+ <Pressable onPress={()=>router.push('/more')} style={{padding:8,alignItems:'center'}}><Text style={{color:brand.red,fontWeight:'800'}}>Back to settings ›</Text></Pressable>
+ </AppScaffold>;
+}

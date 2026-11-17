@@ -1,0 +1,37 @@
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { AppScaffold, Badge, Card, EmptyState, ErrorNotice, Icon, PrimaryButton, SectionHeading, SecondaryButton, ui } from '../components/admin/UI';
+import { brand } from '../constants/brand';
+import { useAuth } from '../context/Auth';
+import { addCase, assignCaseToMe, changeCaseStatus, listCases, StaffCase, type CaseStatus, type Priority, isDemoMode } from '../services/staffApi';
+const choices: {label:string;value:'all'|CaseStatus}[]=[{label:'All',value:'all'},{label:'Open',value:'open'},{label:'In review',value:'in_review'},{label:'Resolved',value:'resolved'}];
+export default function CasesScreen(){
+ const params=useLocalSearchParams<{sisId?:string;studentName?:string}>();const {getAccessToken,user}=useAuth();
+ const [rows,setRows]=useState<StaffCase[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState('');
+ const [filter,setFilter]=useState<'all'|CaseStatus>('all');const [showForm,setShowForm]=useState(false);const [refresh,setRefresh]=useState(0);const [busy,setBusy]=useState(false);
+ const [sisId,setSisId]=useState(params.sisId??'');const [studentName,setName]=useState(params.studentName??'');const [reason,setReason]=useState('');const [note,setNote]=useState('');const [priority,setPriority]=useState<Priority>('medium');
+ useEffect(()=>{if(params.sisId){setSisId(String(params.sisId));setName(String(params.studentName??''));setShowForm(true)}},[params.sisId,params.studentName]);
+ useEffect(()=>{let active=true;const ctrl=new AbortController();setLoading(true);setError('');
+  listCases(getAccessToken,ctrl.signal).then(items=>{if(active)setRows(items)}).catch(e=>{if(active)setError(e instanceof Error?e.message:'Unable to load cases')}).finally(()=>{if(active)setLoading(false)});
+  return()=>{active=false;ctrl.abort();};
+ },[getAccessToken,refresh]);
+ async function create(){
+  if(!/^\d{6,12}$/.test(sisId.trim())){Alert.alert('Invalid SIS ID','Provide a 6–12 digit SIS ID.');return;}
+  if(!studentName.trim()||!reason.trim()){Alert.alert('Incomplete case','Student name and reason are required.');return;}
+  setBusy(true);setError('');try{await addCase({sisId:sisId.trim(),studentName:studentName.trim(),reason:reason.trim(),priority,note:note.trim()},getAccessToken);setShowForm(false);setSisId('');setName('');setReason('');setNote('');setRefresh(n=>n+1)}catch(e){setError(String(e instanceof Error?e.message:e))}finally{setBusy(false)}
+ }
+ async function update(item:StaffCase,status:CaseStatus){setBusy(true);setError('');try{await changeCaseStatus(item.id,status,getAccessToken);setRefresh(v=>v+1)}catch(e){setError(String(e instanceof Error?e.message:e))}finally{setBusy(false)}}
+ async function assign(item:StaffCase){setBusy(true);setError('');try{await assignCaseToMe(item.id,user?.name||'Demo Reviewer',getAccessToken);setRefresh(v=>v+1)}catch(e){setError(String(e instanceof Error?e.message:e))}finally{setBusy(false)}}
+ const filtered=filter==='all'?rows:rows.filter(c=>c.status===filter);
+ return <AppScaffold title="Intervention cases" eyebrow="Follow-up workflow" subtitle="Manage staff review actions after attendance has been recorded." action={<Pressable onPress={()=>setShowForm(!showForm)} style={{backgroundColor:brand.redTint,padding:12,borderRadius:12}} accessibilityLabel="Add case"><Icon name={showForm?'chevron':'plus'} color={brand.red}/></Pressable>}>
+   <Card><View style={ui.spaceBetween}><View><Text style={ui.label}>AWAITING REVIEW</Text><Text style={ui.largeNumber}>{rows.filter(x=>x.status!=='resolved').length}</Text></View><Badge tone="amber">{isDemoMode()?'IN-MEMORY DEMO':'N8N WORKFLOW'}</Badge></View><Text style={ui.muted}>{isDemoMode()?'Demo changes last only until the app restarts. They are never submitted to Qwickly.':'n8n must authorize each creation or status update.'}</Text></Card>
+   {showForm&&<Card><Text style={ui.listTitle}>New intervention case</Text><TextInput style={ui.input} placeholder="Student SIS ID" value={sisId} onChangeText={setSisId} keyboardType="number-pad"/><TextInput style={ui.input} placeholder="Student name" value={studentName} onChangeText={setName}/><TextInput style={ui.input} placeholder="Reason for follow-up" value={reason} onChangeText={setReason}/><TextInput style={[ui.input,{minHeight:77,textAlignVertical:'top'}]} multiline placeholder="Review note (optional)" value={note} onChangeText={setNote}/><Text style={ui.label}>PRIORITY</Text><View style={{flexDirection:'row',gap:9}}>{(['low','medium','high'] as Priority[]).map(p=><Pressable key={p} onPress={()=>setPriority(p)} style={{paddingHorizontal:13,paddingVertical:9,borderRadius:9,backgroundColor:priority===p?brand.redTint:'#F4F5F6',borderWidth:1,borderColor:priority===p?brand.red:brand.line}}><Text style={{color:priority===p?brand.redDark:brand.ink,fontWeight:'700',fontSize:12}}>{p.toUpperCase()}</Text></Pressable>)}</View><PrimaryButton title={busy?'Saving…':'Create case'} disabled={busy} onPress={()=>void create()}/><SecondaryButton title="Cancel" onPress={()=>setShowForm(false)}/></Card>}
+   <SectionHeading title="Case queue"/><View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>{choices.map(c=><Pressable key={c.value} onPress={()=>setFilter(c.value)} style={{borderWidth:1,borderColor:filter===c.value?brand.red:brand.line,backgroundColor:filter===c.value?brand.redTint:'#fff',paddingHorizontal:13,paddingVertical:8,borderRadius:20}}><Text style={{color:filter===c.value?brand.redDark:brand.muted,fontSize:12,fontWeight:'800'}}>{c.label}</Text></Pressable>)}</View>
+   {loading&&<ActivityIndicator color={brand.red}/>} {!!error&&<ErrorNotice message={error}/>}
+   {!loading&&!error&&filtered.length===0&&<EmptyState title="No matching cases" message="Try another status filter or create a new case."/>}
+   {filtered.map(item=><Card key={item.id}><View style={ui.spaceBetween}><Text style={[ui.label,{flex:1}]}>{item.id}</Text><Badge tone={item.status==='resolved'?'green':item.status==='open'?'red':'amber'}>{item.status.replace('_',' ').toUpperCase()}</Badge></View><Text style={ui.listTitle}>{item.reason}</Text><Text style={ui.muted}>{item.studentName} · {item.sisId}</Text><View style={ui.spaceBetween}><Text style={ui.muted}>Owner: {item.owner}</Text><Badge tone={item.priority==='high'?'red':'neutral'}>{item.priority.toUpperCase()}</Badge></View>{!!item.note&&<Text style={[ui.muted,{backgroundColor:brand.background,padding:10,borderRadius:8}]}>{item.note}</Text>}
+   <View style={{flexDirection:'row',gap:8,flexWrap:'wrap'}}>{item.owner==='Unassigned'&&<SecondaryButton disabled={busy} title="Assign to me" onPress={()=>void assign(item)}/>} {item.status==='open'&&<SecondaryButton disabled={busy} title="Start review" onPress={()=>void update(item,'in_review')}/>} {item.status==='in_review'&&<PrimaryButton disabled={busy} title="Mark resolved" icon="check" onPress={()=>void update(item,'resolved')}/>} {item.status==='resolved'&&<SecondaryButton disabled={busy} title="Reopen" onPress={()=>void update(item,'open')}/>}</View>
+   </Card>)}
+ </AppScaffold>;
+}

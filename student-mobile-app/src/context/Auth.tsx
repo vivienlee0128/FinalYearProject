@@ -188,7 +188,7 @@ function fromTokens(
 
 
 // ============================================================
-// MICROSOFT TOKEN → STUDENT
+// MICROSOFT TOKEN → STUDENT USER
 // ============================================================
 
 function userFromToken(
@@ -255,12 +255,10 @@ function userFromToken(
     );
 
 
+  // This mobile prototype is student-only. Backend must independently verify
+  // the Microsoft token, its audience and the student/SIS mapping.
   if (!studentId) {
-
-    throw new Error(
-      'This application is only available to Swinburne student accounts.'
-    );
-
+    throw new Error('This mobile app is for student accounts with a recognised student SIS ID.');
   }
 
 
@@ -721,7 +719,7 @@ export function AuthProvider({
            * IMPORTANT:
            *
            * This account exists ONLY so that
-           * the student application can be
+           * the FYP student preview can be
            * tested inside Expo Go.
            *
            * No Microsoft authentication occurs.
@@ -732,16 +730,16 @@ export function AuthProvider({
             AuthUser = {
 
             name:
-              'Fredly Benny ANAK VILEN',
+              'Demo Student',
 
             email:
-              '104404156@students.swinburne.edu.my',
+              '900000001@students.example.invalid',
 
             studentId:
-              '104404156',
+              '900000001',
 
             sisId:
-              '104404156',
+              '900000001',
 
             method:
               'development',

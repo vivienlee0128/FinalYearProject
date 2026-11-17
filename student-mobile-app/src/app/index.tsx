@@ -21,6 +21,7 @@ import {
 
 import {
   ActivityIndicator,
+  Image,
   Platform,
   StyleSheet,
   Text,
@@ -160,17 +161,27 @@ export default function Login() {
 
     try {
 
-      // const result = await promptAsync();
-      console.log('[LOGIN] Client ID configured:', !!authConfig.clientId);
+      // Log ONLY public request configuration, never full authorization URLs,
+      // authorization codes, PKCE verifiers, cookies or access tokens.
+      console.log('[LOGIN] Client ID:', authConfig.clientId);
+      console.log('[LOGIN] Tenant issuer:', issuer);
       console.log('[LOGIN] Redirect URI:', redirectUri);
+      console.log('[LOGIN] Requested scopes:', scopes.join(' '));
       console.log('[LOGIN] Discovery ready:', !!discovery);
 
       const result = await promptAsync();
-
       console.log('[LOGIN] Auth result type:', result.type);
 
       if (result.type === 'error') {
-        console.log('[LOGIN] Auth error:', result.error?.code);
+        console.log('[LOGIN] Auth error code:', result.error?.code);
+        // Microsoft supplies a useful AADSTS code in error_description.
+        // This is diagnostic text, not a token.
+        const reason = String(
+          result.params?.error_description ??
+          result.error?.message ??
+          'No description returned'
+        );
+        console.log('[LOGIN] Microsoft error description:', reason.slice(0, 750));
       }
 
 
@@ -190,11 +201,15 @@ export default function Login() {
         result.type === 'error'
       ) {
 
+        const detail = String(
+          result.params?.error_description ??
+          result.error?.message ??
+          ''
+        ).replace(/\s+/g, ' ').trim();
+
         throw new Error(
-          `Microsoft could not authorize sign-in (${
-            result.error?.code ??
-            'authorization_error'
-          }).`
+          `Microsoft sign-in failed (${result.error?.code ?? 'authorization_error'}).` +
+          (detail ? ` ${detail.slice(0, 350)}` : '')
         );
 
       }
@@ -362,10 +377,17 @@ export default function Login() {
           styles.title
         }
       >
-        Swinburne Portal
+        Student Attendance
       </Text>
 
 
+      <Image
+        source={require('../../assets/branding/swinburne-logo.png')}
+        style={{width:138,height:70,marginBottom:2}}
+        resizeMode="contain"
+        accessibilityLabel="Swinburne university logo"
+      />
+      <Text style={{color:'#ED1C2E',fontWeight:'800',fontSize:11,letterSpacing:1.4}}>SARAWAK · FYP PROTOTYPE</Text>
       {/* =====================================
           EXPO GO
           ===================================== */}
@@ -379,8 +401,7 @@ export default function Login() {
               styles.subtitle
             }
           >
-            Smart Attendance
-            development environment.
+            Student demo preview. All displayed attendance data is fictional unless the demo n8n endpoint is configured.
           </Text>
 
 
@@ -404,9 +425,7 @@ export default function Login() {
                 styles.developmentDescription
               }
             >
-              This application is
-              currently running inside
-              Expo Go.
+              This is a student-only Expo Go preview. It does not provide university authentication.
             </Text>
 
 
@@ -415,9 +434,7 @@ export default function Login() {
                 styles.developmentDescription
               }
             >
-              Microsoft authentication
-              is bypassed for development
-              testing.
+              Microsoft authentication is bypassed only for fictional demonstration screens.
             </Text>
 
 
@@ -432,7 +449,7 @@ export default function Login() {
                   styles.infoLabel
                 }
               >
-                Development Student
+                Demonstration account
               </Text>
 
 
@@ -441,7 +458,7 @@ export default function Login() {
                   styles.infoValue
                 }
               >
-                104404156@students.swinburne.edu.my
+                900000001@students.example.invalid
               </Text>
 
 
@@ -450,7 +467,7 @@ export default function Login() {
                   styles.infoLabel
                 }
               >
-                SIS ID
+                Permissions
               </Text>
 
 
@@ -459,7 +476,7 @@ export default function Login() {
                   styles.infoValue
                 }
               >
-                104404156
+                Preview only
               </Text>
 
             </View>
@@ -527,7 +544,7 @@ export default function Login() {
                   styles.buttonText
                 }
               >
-                Continue as Development Student
+                Open student demo
               </Text>
 
             )}
@@ -577,8 +594,7 @@ export default function Login() {
               styles.subtitle
             }
           >
-            Sign in with your university
-            Microsoft account.
+            Sign in with your Swinburne student Microsoft account to scan attendance QR codes and view your own attendance.
           </Text>
 
 
@@ -698,6 +714,9 @@ export default function Login() {
 
       )}
 
+      <Text style={{fontSize:11,lineHeight:17,color:'#868D98',textAlign:'center'}}>
+        Research prototype · Not an official Swinburne service or attendance authority.
+      </Text>
     </View>
 
   );
@@ -731,7 +750,9 @@ const styles =
 
     title: {
 
-      fontSize: 26,
+      fontSize: 30,
+      color: '#101114',
+      letterSpacing: -1,
 
       fontWeight:
         'bold',
@@ -784,7 +805,7 @@ const styles =
         'center',
 
       backgroundColor:
-        '#222222',
+        '#ED1C2E',
 
       minHeight: 54,
 
@@ -812,12 +833,12 @@ const styles =
     developmentCard: {
 
       backgroundColor:
-        '#fff7e6',
+        '#FFF5F5',
 
       borderWidth: 1,
 
       borderColor:
-        '#e6c875',
+        '#F7C8CC',
 
       borderRadius: 12,
 
@@ -836,7 +857,7 @@ const styles =
         '700',
 
       color:
-        '#8a5a00',
+        '#9E1930',
 
     },
 

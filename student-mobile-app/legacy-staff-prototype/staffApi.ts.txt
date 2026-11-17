@@ -1,0 +1,163 @@
+/**
+ * Staff-facing frontend contract for n8n. Qwickly credentials never belong in Expo.
+ * All live routes MUST validate Entra access tokens, staff role, and course access in n8n.
+ * Until university approval and n8n endpoints exist, this module returns *clearly marked*
+ * fictional demo fixtures. Failed live calls never silently fall back to synthetic data.
+ */
+export type Source = 'demo' | 'qwickly';
+export type CaseStatus = 'open' | 'in_review' | 'resolved';
+export type Priority = 'high' | 'medium' | 'low';
+export type StaffCase = {
+  id: string; sisId: string; studentName: string; reason: string;
+  priority: Priority; status: CaseStatus; owner: string;
+  createdAt: string; note: string;
+};
+export type StudentSummary = {
+  sisId: string; name: string; programme: string; attendance: number | null;
+  attended: number; scheduled: number; risk: 'review' | 'monitor' | 'none';
+};
+export type AuditIssue = {
+  id: string; type: 'Missing session' | 'Identifier mismatch' | 'Sync failure' | 'Incomplete data';
+  course: string; summary: string; severity: Priority; raisedAt: string; status: 'open' | 'resolved';
+};
+export type DashboardData = {
+  source: Source;
+  updatedAt: string;
+  studentCount: number;
+  meanAttendance: number | null;
+  reportCount: number;
+  trend: { label: string; percentage: number }[];
+  courses: { code: string; title: string; percentage: number; students: number }[];
+};
+export type StaffApiConfig = { enabled: boolean; reason: string };
+
+const STAFF_BASE = (process.env.EXPO_PUBLIC_N8N_STAFF_API_BASE_URL ?? '').trim().replace(/\/+$/, '');
+const API_SCOPE = (process.env.EXPO_PUBLIC_MS_API_SCOPE ?? '').trim();
+const STAFF_SCOPE_ENABLED = process.env.EXPO_PUBLIC_ENABLE_STAFF_API_SCOPE === 'true';
+
+export function staffApiConfig(): StaffApiConfig {
+  if (!STAFF_BASE) return { enabled: false, reason: 'Staff API not configured — showing fictional demonstration data.' };
+  if (!/^https:\/\/[^\s/]+\/webhook\//i.test(STAFF_BASE))
+    return { enabled: false, reason: 'Staff API must use a HTTPS n8n webhook URL.' };
+  if (!STAFF_SCOPE_ENABLED) return { enabled: false, reason: 'Live staff API is disabled until the delegated scope is approved; showing demonstration data.' };
+  if (!API_SCOPE || API_SCOPE.includes('YOUR_'))
+    return { enabled: false, reason: 'A delegated Microsoft API scope must be approved before sending tokens to n8n.' };
+  return { enabled: true, reason: 'Connected mode requested; n8n must enforce staff and course authorization.' };
+}
+
+export const isDemoMode = () => !staffApiConfig().enabled;
+
+const DEMO_STUDENTS: StudentSummary[] = [
+  {sisId:'900000001',name:'Demo Student A',programme:'Bachelor of ICT',attendance:92,attended:23,scheduled:25,risk:'none'},
+  {sisId:'900000002',name:'Demo Student B',programme:'Diploma in IT',attendance:74,attended:20,scheduled:27,risk:'review'},
+  {sisId:'900000003',name:'Demo Student C',programme:'Bachelor of ICT',attendance:81,attended:21,scheduled:26,risk:'monitor'},
+  {sisId:'900000004',name:'Demo Student D',programme:'Diploma in IT',attendance:null,attended:0,scheduled:0,risk:'review'},
+  {sisId:'900000005',name:'Demo Student E',programme:'Bachelor of ICT',attendance:96,attended:24,scheduled:25,risk:'none'},
+  {sisId:'900000006',name:'Demo Student F',programme:'Bachelor of ICT',attendance:67,attended:18,scheduled:27,risk:'review'},
+];
+const DEMO_AUDIT: AuditIssue[] = [
+  {id:'AUD-DEMO-001',type:'Missing session',course:'CSS202',summary:'One scheduled class session is missing an attendance record.',severity:'high',raisedAt:'2026-10-29T10:00:00Z',status:'open'},
+  {id:'AUD-DEMO-002',type:'Identifier mismatch',course:'CSS103',summary:'One student identifier cannot be reconciled across sample datasets.',severity:'medium',raisedAt:'2026-10-28T11:30:00Z',status:'open'},
+  {id:'AUD-DEMO-003',type:'Sync failure',course:'CSS204',summary:'An example Qwickly synchronization job needs review.',severity:'low',raisedAt:'2026-10-27T08:00:00Z',status:'open'},
+];
+let demoCases: StaffCase[] = [
+  {id:'DEMO-CASE-001',sisId:'900000002',studentName:'Demo Student B',reason:'Attendance below sample review threshold',priority:'high',status:'open',owner:'Unassigned',createdAt:'2026-10-29T09:12:00Z',note:'Example case; no official university action.'},
+  {id:'DEMO-CASE-002',sisId:'900000004',studentName:'Demo Student D',reason:'Attendance data unavailable',priority:'medium',status:'in_review',owner:'Demo Reviewer',createdAt:'2026-10-27T14:00:00Z',note:'Check whether enrolment and sessions are present.'},
+  {id:'DEMO-CASE-003',sisId:'900000006',studentName:'Demo Student F',reason:'Attendance follow-up requested',priority:'high',status:'resolved',owner:'Demo Reviewer',createdAt:'2026-10-24T09:00:00Z',note:'Fictional resolved example.'},
+];
+
+async function request<T>(
+  path: string,
+  getAccessToken: () => Promise<string>,
+  options: {method?: 'GET' | 'POST'; body?: unknown; signal?: AbortSignal} = {},
+): Promise<T> {
+  const configuration = staffApiConfig();
+  if (!configuration.enabled) throw new Error(configuration.reason);
+  const token = await getAccessToken();
+  if (!token) throw new Error('Microsoft access token unavailable. Sign in again.');
+  const url = `${STAFF_BASE}/${path.replace(/^\//, '')}`;
+  const response = await fetch(url, {
+    method: options.method ?? 'GET',
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json',
+      ...(options.body === undefined ? {} : {'Content-Type': 'application/json'}) },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    signal: options.signal,
+  });
+  if (response.status === 401 || response.status === 403)
+    throw new Error('n8n denied access. Confirm Microsoft token audience and staff/course permissions.');
+  if (!response.ok) throw new Error(`n8n request failed (HTTP ${response.status}).`);
+  const data: unknown = await response.json();
+  if (!data || typeof data !== 'object') throw new Error('n8n returned an invalid JSON response.');
+  return data as T;
+}
+
+export const demoStudents = () => DEMO_STUDENTS.map(s=>({...s}));
+export const demoAuditIssues = () => DEMO_AUDIT.map(i=>({...i}));
+export const demoDashboard = (): DashboardData => ({
+  source:'demo', updatedAt: new Date().toISOString(), studentCount:128, meanAttendance:86.4,
+  reportCount:34,
+  trend:[{label:'Week 1',percentage:91},{label:'Week 2',percentage:87},{label:'Week 3',percentage:84},{label:'Week 4',percentage:88},{label:'Week 5',percentage:86}],
+  courses:[{code:'CSS202',title:'System Analysis & Design',percentage:91,students:38},
+    {code:'CSS103',title:'Fundamentals of Networking',percentage:83,students:45},
+    {code:'CSS204',title:'Data Structures',percentage:85,students:45}],
+});
+export async function loadDashboard(getToken:()=>Promise<string>,signal?:AbortSignal):Promise<DashboardData> {
+  if(isDemoMode())return demoDashboard();
+  const data=await request<DashboardData>('dashboard',getToken,{signal});
+  if (!Array.isArray(data.courses)||!Array.isArray(data.trend)||data.source!=='qwickly')throw new Error('Staff dashboard response is not verified Qwickly data.');
+  return data;
+}
+export async function findStudents(q:string,getToken:()=>Promise<string>,signal?:AbortSignal):Promise<StudentSummary[]> {
+  if(isDemoMode())return demoStudents().filter(s=>(s.name+' '+s.sisId+' '+s.programme).toLowerCase().includes(q.toLowerCase()));
+  if(q.trim().length<3) return []; // Avoid unbounded live roster enumeration.
+  const data=await request<{students:StudentSummary[]}>(`students?query=${encodeURIComponent(q)}`,getToken,{signal});
+  if (!Array.isArray(data.students)) throw new Error('Student search returned an invalid list.');
+  return data.students;
+}
+export async function listCases(getToken:()=>Promise<string>,signal?:AbortSignal):Promise<StaffCase[]> {
+  if(isDemoMode())return demoCases.map(c=>({...c}));
+  const data=await request<{cases:StaffCase[]}>('cases',getToken,{signal});
+  if (!Array.isArray(data.cases))throw new Error('Case API returned an invalid list.');
+  return data.cases;
+}
+export async function addCase(data:Pick<StaffCase,'sisId'|'studentName'|'reason'|'priority'|'note'>,getToken:()=>Promise<string>):Promise<StaffCase> {
+  if(isDemoMode()){
+    const entry:StaffCase={...data,id:`DEMO-CASE-${Date.now()}`,status:'open',owner:'Unassigned',createdAt:new Date().toISOString()};
+    demoCases=[entry,...demoCases];return {...entry};
+  }
+  const response=await request<{case:StaffCase}>('cases',getToken,{method:'POST',body:{action:'create',...data}});
+  if(!response.case?.id)throw new Error('Case creation was not confirmed by n8n.');
+  return response.case;
+}
+export async function changeCaseStatus(id:string,status:CaseStatus,getToken:()=>Promise<string>):Promise<StaffCase> {
+  if(isDemoMode()){
+    const current=demoCases.find(c=>c.id===id);if(!current)throw new Error('Case not found.');
+    const updated={...current,status};demoCases=demoCases.map(c=>c.id===id?updated:c);return updated;
+  }
+  const response=await request<{case:StaffCase}>('cases',getToken,{method:'POST',body:{action:'updateStatus',id,status}});
+  if(response.case?.status!==status)throw new Error('n8n did not confirm the case status update.');
+  return response.case;
+}
+export async function assignCaseToMe(id: string, staffName: string, getToken: () => Promise<string>): Promise<StaffCase> {
+  if (isDemoMode()) {
+    const current=demoCases.find(c=>c.id===id);
+    if(!current)throw new Error('Case not found.');
+    const updated={...current,owner:staffName||'Demo Reviewer'};
+    demoCases=demoCases.map(c=>c.id===id?updated:c);
+    return updated;
+  }
+  // n8n must derive the assignee from a verified Microsoft token, not from user input.
+  const response=await request<{case:StaffCase}>('cases',getToken,{method:'POST',body:{action:'assignToMe',id}});
+  if(!response.case?.id)throw new Error('n8n did not confirm the assignment.');
+  return response.case;
+}
+export async function listAudit(getToken:()=>Promise<string>,signal?:AbortSignal):Promise<AuditIssue[]> {
+  if(isDemoMode())return demoAuditIssues();
+  const data=await request<{issues:AuditIssue[]}>('audit',getToken,{signal});
+  if(!Array.isArray(data.issues))throw new Error('Audit API returned an invalid list.');
+  return data.issues;
+}
+/** Reports are intentionally not written here until the authorized n8n PDF contract exists. */
+export async function requestLiveReport(sisId:string,type:'attendance'|'compliance',getToken:()=>Promise<string>):Promise<{jobId:string;status:string}> {
+  return request('reports',getToken,{method:'POST',body:{sisId,type}});
+}

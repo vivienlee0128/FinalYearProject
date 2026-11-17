@@ -1,0 +1,34 @@
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import { Platform } from 'react-native';
+import { StudentSummary } from './staffApi';
+
+export type ReportType = 'attendance' | 'compliance';
+const esc = (text: unknown) => String(text ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
+
+/** Only for fictional demo records; never generates an official compliance decision. */
+export function buildDemoReportHtml(student: StudentSummary, type: ReportType): string {
+ const attendance=student.attendance===null?'Not available':`${student.attendance.toFixed(1)}%`;
+ const now=new Date().toLocaleString('en-MY',{dateStyle:'long',timeStyle:'short'});
+ const header=type==='attendance'?'Attendance Review Report':'Visa & Compliance Review Report';
+ const rows=type==='attendance'?
+  `<tr><td>Attendance recorded</td><td>${student.attended} sessions</td></tr><tr><td>Scheduled sessions</td><td>${student.scheduled} sessions</td></tr><tr><td>Attendance percentage</td><td>${esc(attendance)}</td></tr>` :
+  `<tr><td>Attendance data</td><td>${esc(attendance)}</td></tr><tr><td>Visa status</td><td>Not assessed</td></tr><tr><td>Compliance assessment</td><td>Requires authorized university review</td></tr><tr><td>Supporting evidence</td><td>Not supplied in demonstration</td></tr>`;
+ return `<!doctype html><html><head><meta charset="utf-8"><style>
+ @page{size:A4;margin:21mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#141414;margin:0}
+ .rule{height:7px;background:#ED1C2E;margin:20px 0 26px}.brand{font-weight:900;font-size:18px;letter-spacing:-.4px}
+ .sub{font-size:11px;color:#666;margin-top:4px}h1{font-size:26px;line-height:1.2;margin:0 0 10px}p{font-size:12px;line-height:1.6;color:#555}
+ table{border-collapse:collapse;width:100%;margin-top:18px}td{padding:13px;border-bottom:1px solid #DDD;font-size:12px}td:first-child{width:42%;font-weight:700;background:#f7f7f7}
+ .watermark{padding:12px 14px;background:#fff0f1;border:1px solid #ED1C2E;color:#9a1020;font-weight:800;margin:16px 0}
+ .footer{border-top:1px solid #DDD;margin-top:40px;padding-top:12px;font-size:11px;color:#555}
+ </style></head><body><div class="brand">SWINBURNE · ATTENDANCE INTELLIGENCE</div><div class="sub">Sarawak FYP prototype — university-style demonstration document</div><div class="rule"></div><h1>${header}</h1><div class="watermark">DEMONSTRATION ONLY — NOT AN OFFICIAL UNIVERSITY OR VISA DOCUMENT</div><p>Generated: ${esc(now)}<br>Source: fictional demonstration dataset</p><table>
+ <tr><td>Student</td><td>${esc(student.name)}</td></tr><tr><td>Sample SIS ID</td><td>${esc(student.sisId)}</td></tr><tr><td>Programme</td><td>${esc(student.programme)}</td></tr>${rows}</table>
+ <p>All student identities and attendance values in this preview are fictional. No Qwickly API write has occurred.</p>
+ <div class="footer">Prepared for capstone evaluation. Final reports must use verified institutional sources, approved templates and authorized sign-off.</div></body></html>`;
+}
+export async function createAndShareDemoPdf(html: string): Promise<'printed'|'shared'|'saved'> {
+ if(Platform.OS==='web'){await Print.printAsync({html});return 'printed'}
+ const result=await Print.printToFileAsync({html});
+ if(await Sharing.isAvailableAsync()){await Sharing.shareAsync(result.uri,{mimeType:'application/pdf',dialogTitle:'Share demonstration report'});return 'shared'}
+ return 'saved';
+}
