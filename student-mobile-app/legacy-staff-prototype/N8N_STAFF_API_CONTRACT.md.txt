@@ -1,0 +1,88 @@
+# n8n-only staff API contract (to implement after Qwickly permission)
+
+## Security gate — must come before any student-data node
+
+Every route must:
+1. Require `Authorization: Bearer <Microsoft Entra access token>` over HTTPS. Never accept an ID token as a substitute for an access token.
+2. Validate the JWT signature with Microsoft's tenant JWKS, algorithm, `iss`, `aud`, `tid`, expiry/nbf, `scp`, and authorized client `azp`/`appid` as appropriate to the approved v2 access token.
+3. Authorize the verified Object ID against staff roles and assignments stored server-side; do not use an Expo-supplied `role`, email or SIS ID to grant access.
+4. Restrict student searches, reports and case operations to authorized courses and institutional policy.
+5. Keep Qwickly OAuth secrets in n8n encrypted credentials. Implement API rate-limits, idempotency for case creation, audit logs, safe errors and appropriate retention.
+6. Ensure the attendance source is explicitly distinguished as `qwickly` vs `demo`. Never return fictional data on Qwickly outages.
+
+## Base
+
+`https://YOUR_N8N_DOMAIN/webhook/fyp/mobile` (configure as `EXPO_PUBLIC_N8N_STAFF_API_BASE_URL` in Expo).
+
+All examples contain *fictional* records; their fields define the frontend expected JSON structure.
+
+### GET `/dashboard`
+
+```json
+{
+  "source": "qwickly",
+  "updatedAt": "2026-10-31T12:00:00Z",
+  "studentCount": 128,
+  "meanAttendance": 86.4,
+  "reportCount": 34,
+  "trend": [{"label":"Week 1","percentage":91}],
+  "courses": [{"code":"CSS202","title":"System Analysis & Design","percentage":91,"students":38}]
+}
+```
+
+### GET `/students?query=900000001`
+
+```json
+{"students":[{"sisId":"900000001","name":"Example Student","programme":"Diploma in IT","attendance":74,"attended":20,"scheduled":27,"risk":"review"}]}
+```
+
+The Expo client only sends live search requests with at least three characters; n8n must impose its own result limits and enforce course authorization.
+
+`risk` is `review`, `monitor`, or `none` from institution-approved criteria; `attendance` may be `null` when unknown.
+
+### GET `/cases`
+
+```json
+{"cases":[{"id":"CASE-001","sisId":"900000001","studentName":"Example Student","reason":"Follow-up","priority":"medium","status":"open","owner":"Unassigned","createdAt":"2026-10-31T12:00:00Z","note":"Review required"}]}
+```
+
+### POST `/cases`
+
+Create request:
+```json
+{"action":"create","sisId":"900000001","studentName":"Example Student","reason":"Attendance follow-up","priority":"medium","note":"Review"}
+```
+
+Assign request:
+```json
+{"action":"assignToMe","id":"CASE-001"}
+```
+
+Update request:
+```json
+{"action":"updateStatus","id":"CASE-001","status":"in_review"}
+```
+
+All return `{"case":{...full case fields...}}`. The backend must derive assignee and authorized student identity from verified records rather than trusting frontend text. Allowed statuses: `open`, `in_review`, `resolved`.
+
+### GET `/audit`
+
+```json
+{"issues":[{"id":"AUD-001","type":"Missing session","course":"CSS202","summary":"Missing attendance data","severity":"high","raisedAt":"2026-10-31T12:00:00Z","status":"open"}]}
+```
+
+### POST `/reports`
+
+```json
+{"sisId":"900000001","type":"attendance"}
+```
+
+`type` is `attendance` or `compliance`. Return `{"jobId":"RPT-001","status":"queued"}`. Future secure job-results/download webhook must check staff authorization and avoid bearer tokens in URL. The app currently confirms job submission only; it does not pretend that a completed official PDF was downloaded.
+
+## Rollout guidance
+
+1. Test `GET /dashboard` using a university-approved read-only Qwickly account and test course.
+2. Verify staff role / course-level authorization before exposing `/students`.
+3. Add case storage and documented administrative rules in n8n Data Tables or an approved store.
+4. Implement audit reconciliation and separate approved PDF templates.
+5. Revoke public legacy demo QR endpoint once no longer required; Qwickly handles official QR attendance.

@@ -1,0 +1,35 @@
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Text, TextInput, Pressable, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { AppScaffold, Badge, Card, EmptyState, ErrorNotice, Icon, PrimaryButton, ui } from '../components/admin/UI';
+import { brand } from '../constants/brand';
+import { useAuth } from '../context/Auth';
+import { findStudents, isDemoMode, requestLiveReport, type StudentSummary } from '../services/staffApi';
+import { buildDemoReportHtml, createAndShareDemoPdf, type ReportType } from '../services/staffReport';
+export default function ReportsScreen(){
+ const params=useLocalSearchParams<{sisId?:string}>();const {getAccessToken}=useAuth();
+ const [type,setType]=useState<ReportType>('attendance');const [sisId,setSisId]=useState(params.sisId??'');
+ const [student,setStudent]=useState<StudentSummary|null>(null);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [result,setResult]=useState('');
+ useEffect(()=>{if(params.sisId)setSisId(String(params.sisId))},[params.sisId]);
+ async function lookup(){const id=sisId.trim();setError('');setResult('');setStudent(null);if(!/^\d{6,12}$/.test(id)){setError('Enter a valid 6–12 digit student SIS ID.');return;}
+  setBusy(true);try{const rows=await findStudents(id,getAccessToken);const match=rows.find(s=>s.sisId===id);if(!match)throw new Error('Student not found or your account cannot access this student.');setStudent(match)}catch(e){setError(String(e instanceof Error?e.message:e))}finally{setBusy(false)}
+ }
+ async function generate(){if(!student)return;setBusy(true);setError('');setResult('');try{
+   if(isDemoMode()){
+     const html=buildDemoReportHtml(student,type);const outcome=await createAndShareDemoPdf(html);setResult(outcome==='printed'?'Demo print dialog opened.':'Demonstration PDF was generated. It is not an official report.');
+   }else{
+     const result=await requestLiveReport(student.sisId,type,getAccessToken);
+     if(!result.jobId)throw new Error('n8n did not confirm report job creation.');
+     setResult(`n8n accepted report job ${result.jobId} (${result.status}). Downloading the authorized final PDF requires the n8n report-result endpoint.`);
+   }
+  }catch(e){setError(String(e instanceof Error?e.message:e))}finally{setBusy(false)}
+ }
+ return <AppScaffold title="Report centre" eyebrow="Document automation" subtitle="Separate attendance and compliance review documents for authorized staff.">
+  <View style={{flexDirection:'row',gap:10}}>{([{type:'attendance',name:'Attendance',description:'Session summary'},{type:'compliance',name:'Visa & compliance',description:'Review document'}] as const).map(item=><Pressable onPress={()=>{setType(item.type);setResult('')}} key={item.type} style={{flex:1,padding:15,borderWidth:1,borderColor:type===item.type?brand.red:brand.line,borderRadius:15,backgroundColor:type===item.type?brand.redTint:'#fff',gap:7}}><Icon name={item.type==='attendance'?'chart':'shield'} color={type===item.type?brand.red:brand.muted} size={23}/><Text style={{fontSize:13,fontWeight:'900',color:brand.ink}}>{item.name}</Text><Text style={ui.muted}>{item.description}</Text></Pressable>)}</View>
+  <Card><Text style={ui.listTitle}>Choose a student</Text><Text style={ui.muted}>Only authorized records should be retrievable in connected mode. Demo IDs: 900000001 to 900000006.</Text><TextInput value={sisId} onChangeText={v=>{setSisId(v);setStudent(null);setResult('')}} placeholder="Student SIS ID" keyboardType="number-pad" style={ui.input}/><PrimaryButton title={busy?'Checking…':'Find student'} icon="search" disabled={busy} onPress={()=>void lookup()}/></Card>
+  {busy&&<ActivityIndicator color={brand.red}/>} {!!error&&<ErrorNotice message={error}/>}
+  {student&&<Card><View style={ui.spaceBetween}><View style={{flex:1,gap:5}}><Text style={ui.listTitle}>{student.name}</Text><Text style={ui.muted}>{student.sisId} · {student.programme}</Text></View><Badge tone={isDemoMode()?'amber':'green'}>{isDemoMode()?'FICTIONAL':'CONNECTED'}</Badge></View><View style={ui.divider}/><Text style={ui.label}>REPORT TYPE</Text><Text style={{fontSize:17,fontWeight:'800'}}>{type==='attendance'?'Attendance Review':'Visa & Compliance Review'}</Text><Text style={ui.muted}>{type==='compliance'?'No visa outcome or eligibility determination will be inferred from attendance.':'Course participation information and recorded session totals.'}</Text><PrimaryButton title={busy?'Working…':isDemoMode()?'Generate demo PDF':'Request verified report'} icon="file" disabled={busy} onPress={()=>void generate()}/></Card>}
+  {!!result&&<Card style={{backgroundColor:brand.positiveTint}}><View style={ui.row}><Icon name="check" color={brand.positive}/><Text style={[ui.muted,{flex:1,color:brand.positive,fontWeight:'800'}]}>{result}</Text></View></Card>}
+  <Card><View style={ui.row}><Icon name="shield" color={brand.red}/><Text style={ui.listTitle}>Official documentation controls</Text></View><Text style={ui.muted}>The institution must approve report templates, data access and review/sign-off steps before any document can be used for compliance decisions. Demonstration PDFs are prominently marked unofficial.</Text></Card>
+ </AppScaffold>;
+}

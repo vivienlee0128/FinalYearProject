@@ -1,0 +1,24 @@
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { AppScaffold, Badge, Card, ErrorNotice, Icon, PrimaryButton, ProgressBar, SectionHeading, ui } from '../components/admin/UI';
+import { brand } from '../constants/brand';
+import { useAuth } from '../context/Auth';
+import { findStudents, type StudentSummary } from '../services/staffApi';
+export default function StudentDetail(){
+  const {sisId}=useLocalSearchParams<{sisId?:string}>();const id=typeof sisId==='string'?sisId:'';
+  const router=useRouter();const {getAccessToken}=useAuth();const [student,setStudent]=useState<StudentSummary|null>(null);const [error,setError]=useState('');const [loading,setLoading]=useState(true);
+  useEffect(()=>{let active=true;const ctrl=new AbortController();if(!/^\d{6,12}$/.test(id)){setError('Invalid SIS ID.');setLoading(false);return;}
+    setLoading(true);findStudents(id,getAccessToken,ctrl.signal).then(rows=>{if(active){const match=rows.find(r=>r.sisId===id);setStudent(match??null);if(!match)setError('No student record found or you are not authorized.');}}).catch(e=>{if(active)setError(String(e instanceof Error?e.message:e));}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;ctrl.abort()};
+  },[id,getAccessToken]);
+  return <AppScaffold eyebrow="Student record" title="Attendance details" subtitle="For authorized lecturers and administrative reviewers only.">
+    <Pressable onPress={()=>router.back()} style={{flexDirection:'row',gap:8,alignItems:'center'}}><Icon name="chevron" color={brand.red}/><Text style={{color:brand.red,fontWeight:'700'}}>Back to students</Text></Pressable>
+    {loading&&<ActivityIndicator color={brand.red}/>} {!!error&&<ErrorNotice message={error}/>}
+    {student&&<><Card><View style={ui.spaceBetween}><View style={{gap:6,flex:1}}><Text style={{fontSize:22,fontWeight:'900',color:brand.ink}}>{student.name}</Text><Text style={ui.muted}>SIS ID {student.sisId}</Text><Text style={ui.muted}>{student.programme}</Text></View><Badge tone={student.risk==='review'?'red':student.risk==='monitor'?'amber':'green'}>{student.risk==='review'?'NEEDS REVIEW':student.risk==='monitor'?'MONITOR':'ON TRACK'}</Badge></View></Card>
+      <SectionHeading title="Attendance summary"/><Card><View style={ui.spaceBetween}><Text style={ui.label}>OVERALL ATTENDANCE</Text><Text style={ui.largeNumber}>{student.attendance===null?'N/A':`${student.attendance}%`}</Text></View><ProgressBar value={student.attendance}/><Text style={ui.muted}>{student.attended} recorded attendance entries across {student.scheduled} scheduled sessions.</Text></Card>
+      <Card><Text style={ui.listTitle}>Administrative review</Text><Text style={ui.muted}>Any threshold is an example until university-approved rules are supplied. An attendance percentage alone does not determine visa compliance.</Text></Card>
+      <PrimaryButton title="Create intervention case" icon="plus" onPress={()=>router.push({pathname:'/cases',params:{sisId:student.sisId,studentName:student.name}})}/>
+      <Pressable onPress={()=>router.push({pathname:'/reports',params:{sisId:student.sisId}})} style={{flexDirection:'row',padding:15,borderRadius:12,backgroundColor:'#fff',alignItems:'center',gap:10}}><Icon name="reports" color={brand.red}/><Text style={{fontSize:13,fontWeight:'800',flex:1}}>Open report centre for this student</Text><Icon name="arrow"/></Pressable>
+    </>}
+  </AppScaffold>;
+}

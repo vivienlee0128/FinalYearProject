@@ -1,0 +1,29 @@
+import { useEffect, useState } from 'react';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
+import { useAuth } from '../context/Auth';
+import { brand } from '../constants/brand';
+const PREFIX='attendance_intelligence_staff_intro_v2_';
+const steps=[
+  {title:'1. Keep Qwickly as the attendance source',body:'Lecturers continue recording attendance in the official Qwickly interface. This app does not replace or generate its QR.'},
+  {title:'2. Monitor student attendance',body:'Review student records and course trends where your university has granted authorized API access.'},
+  {title:'3. Manage follow-up cases',body:'Create, assign, track and resolve intervention cases. Demo cases are fictional and reset when the app restarts.'},
+  {title:'4. Generate separate reports',body:'Prepare distinct Attendance and Visa & Compliance Review documents. Demonstration PDFs are unofficial.'},
+  {title:'5. Verify data sources and permissions',body:'n8n must verify Microsoft tokens and staff/course authorization on every live request. Attendance percentages alone do not determine visa status.'},
+  {title:'6. Protect student privacy',body:'Use only university-approved data, with role-limited access, secure storage, and suitable retention periods.'},
+];
+export function GuideContent({onDone,buttonLabel='Open staff workspace'}:{onDone:()=>void;buttonLabel?:string}){
+ return <View style={styles.panel}><Text style={styles.label}>SWINBURNE SARAWAK · FYP</Text><Text style={styles.heading}>Welcome to Attendance Intelligence</Text><Text style={styles.subtitle}>Staff companion guide</Text><ScrollView contentContainerStyle={{gap:10,paddingBottom:15}}>{steps.map(x=><View key={x.title} style={styles.step}><Text style={styles.title}>{x.title}</Text><Text style={styles.body}>{x.body}</Text></View>)}</ScrollView><Pressable onPress={onDone} accessibilityRole="button" style={styles.button}><Text style={styles.buttonText}>{buttonLabel}</Text></Pressable></View>
+}
+export default function FirstRunGate(){
+ const {user,isAuthenticated,isLoading}=useAuth();const [visible,setVisible]=useState(false);const [keyLoaded,setKeyLoaded]=useState('');
+ const identity=user?.email||'';const key=identity?`${PREFIX}${identity.toLowerCase()}`:'';
+ useEffect(()=>{let active=true;setVisible(false);setKeyLoaded('');if(isLoading||!isAuthenticated||!key||Platform.OS==='web')return()=>{active=false};
+   SecureStore.getItemAsync(key).then(value=>{if(active)setVisible(value!=='done')}).catch(()=>{if(active)setVisible(true)}).finally(()=>{if(active)setKeyLoaded(key)});
+   return()=>{active=false};
+ },[isLoading,isAuthenticated,key]);
+ async function done(){try{await SecureStore.setItemAsync(key,'done');setVisible(false)}catch{setVisible(false)}}
+ if(!isAuthenticated||!key||key!==keyLoaded)return null;
+ return <Modal visible={visible} animationType="slide" presentationStyle="fullScreen"><GuideContent onDone={()=>void done()}/></Modal>
+}
+const styles=StyleSheet.create({panel:{flex:1,paddingHorizontal:22,paddingTop:50,paddingBottom:24,backgroundColor:brand.background},label:{fontSize:11,fontWeight:'900',letterSpacing:1.2,color:brand.red,marginBottom:10},heading:{fontSize:28,fontWeight:'900',color:brand.ink,lineHeight:35},subtitle:{fontSize:13,color:brand.muted,marginBottom:19,marginTop:5},step:{padding:16,backgroundColor:'#fff',borderWidth:1,borderColor:brand.line,borderRadius:13},title:{fontSize:15,fontWeight:'800',color:brand.ink,marginBottom:6},body:{color:brand.muted,fontSize:13,lineHeight:20},button:{backgroundColor:brand.red,borderRadius:12,padding:15,alignItems:'center',marginTop:10},buttonText:{color:'#fff',fontWeight:'900',fontSize:14}});
