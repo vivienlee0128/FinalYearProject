@@ -1,0 +1,979 @@
+{
+  "name": "FYP QR · Emulated / Qwickly Proxy (SAFE OFF by default)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "fyp/qr-demo-v2",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -2304,
+        96
+      ],
+      "id": "6430734a-da45-4e55-a899-fe98a6dd9050",
+      "name": "01 · GET Lecturer / Token / Roster / Excel",
+      "webhookId": "cf5b741a-f35d-46f3-803f-a2ca3022bdb1"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fyp/qr-demo-v2",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -2304,
+        384
+      ],
+      "id": "38a8096a-560f-4d6e-a198-ad659f746dcb",
+      "name": "02 · POST Scan / End / Start",
+      "webhookId": "ab1629cd-7072-4232-836f-7056b365480e"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$input.first().json,_method:'GET'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2064,
+        96
+      ],
+      "id": "a383a4cc-350c-4f16-b0b8-bf2d2e5a7cc1",
+      "name": "03 · GET Input"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$input.first().json,_method:'POST'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2064,
+        384
+      ],
+      "id": "5a7ec953-edaf-4554-8d35-0ca57e761b1b",
+      "name": "04 · POST Input"
+    },
+    {
+      "parameters": {
+        "jsCode": "const req=$input.first().json;\nlet body=req.body??{};\nif(typeof body==='string'){try{body=JSON.parse(body);}catch{body={};}}\nif(body&&typeof body==='object'&&typeof body.data==='string'&&!body.action){try{body=JSON.parse(body.data);}catch{}}\nconst q=req.query||{};\nlet qr={};try{qr=typeof body.qrData==='string'?JSON.parse(body.qrData):(body.qrData||{});}catch{qr={};}\nconst course=String(q.course_lms_id||body.courseLmsId||qr.courseLmsId||'2244');\nconst session=String(q.session_id||body.sessionId||qr.sessionId||'94703');\nreturn [{json:{method:req._method,query:q,body,authorization:String(req.headers?.authorization||req.headers?.Authorization||''),sessionKey:course+'|'+session}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1824,
+        240
+      ],
+      "id": "7a7bcfdd-0a47-4cee-a483-f8e42e92ca72",
+      "name": "05 · Request Context"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "FYP_QR_LEDGER",
+          "mode": "name"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "session_key",
+              "keyValue": "={{ $json.sessionKey }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -1568,
+        240
+      ],
+      "id": "27539347-2c8a-4651-b65d-559ec0b93ea2",
+      "name": "06 · Read Attendance Ledger",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// FYP QR API V2 | single-use, 5-second expiry | n8n Data Table ledger\n// Demo mode emulates records; QWICKLY mode verifies identity and POSTs via authorised proxy.\nconst CONFIG = {\"PUBLIC_URL\":\"https://fyp-workflow.swin.click/webhook/fyp/qr-demo-v2\",\"QR_SECRET\":\"76598350649031282377617961999112\",\"LECTURER_ACCESS\":\"52GC\",\"COURSE_LMS_ID\":\"2244\",\"SESSION_ID\":\"94703\",\"UNIT_LABEL\":\"CSS202 \\u00b7 Demo Class\",\"ROTATE_MS\":30000,\"POST_MODE\":\"DEMO\"};\nconst req=$('05 · Request Context').first().json;\nconst all=$input.all().map(x=>x.json).filter(x=>x && x.row_key);\nconst query=req.query||{}, body=req.body||{};\nconst method=req.method, action=method==='POST'?String(body.action||query.action||'scan'):String(query.action||'page');\nconst course=String(query.course_lms_id||body.courseLmsId||CONFIG.COURSE_LMS_ID);\nconst session=String(query.session_id||body.sessionId||CONFIG.SESSION_ID);\nconst sessionKey=course+'|'+session;\nconst now=Date.now(), slot=Math.floor(now/CONFIG.ROTATE_MS);\nconst result=(payload,status=200,kind='json',writeRow=null,excelRows=null)=>[{json:{payload,httpStatus:status,kind,html:kind==='html'?payload:undefined,writeRow,needsWrite:Boolean(writeRow),needsProxy:Boolean(writeRow&&writeRow.kind==='ATTENDANCE'&&CONFIG.POST_MODE==='QWICKLY'),excelRows}}];\nconst fail=(message,status=400,code='rejected')=>result({ok:false,success:false,status:code,message,demo:true,recordedInQwickly:false,courseLmsId:course,sessionId:session},status);\nconst validId=x=>/^\\d{1,12}$/.test(String(x||''));\nconst escapeHTML=s=>String(s).replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]));\nconst access=String(query.access||body.access||'');\nif(!validId(course)||!validId(session)||course!==CONFIG.COURSE_LMS_ID||session!==CONFIG.SESSION_ID)return fail('Unknown course or session.',404);\nif(CONFIG.QR_SECRET.length<32||CONFIG.QR_SECRET.includes('REPLACE_WITH'))return fail('Configure a private QR_SECRET of at least 32 characters.',503);\nif(CONFIG.LECTURER_ACCESS.includes('REPLACE_WITH'))return fail('Configure the private lecturer access code.',503);\n// Restricted lecturer actions. Student scan only requires a signed QR; it cannot call instructor actions.\nif(action!=='scan'&&CONFIG.LECTURER_ACCESS&&access!==CONFIG.LECTURER_ACCESS)return fail('Lecturer access code is missing or incorrect.',403);\nfunction utf8Bytes(s) {\n  const enc = encodeURIComponent(s), out=[];\n  for(let i=0;i<enc.length;i++) {\n    if(enc[i]==='%'){out.push(parseInt(enc.slice(i+1,i+3),16));i+=2;}\n    else out.push(enc.charCodeAt(i));\n  }\n  return out;\n}\nfunction sha256Bytes(input) {\n const K=[\n 0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,\n 0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,\n 0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,\n 0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,\n 0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,\n 0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,\n 0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,\n 0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];\n const h=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];\n const a=input.slice(), len=input.length*8;\n a.push(0x80); while(a.length%64!==56) a.push(0);\n for(let i=7;i>=0;i--) a.push(Math.floor(len/Math.pow(256,i))&255);\n const rr=(x,n)=>(x>>>n)|(x<<(32-n));\n for(let ofs=0;ofs<a.length;ofs+=64){\n  const w=new Array(64);\n  for(let j=0;j<16;j++){const k=ofs+j*4;w[j]=((a[k]<<24)|(a[k+1]<<16)|(a[k+2]<<8)|a[k+3])>>>0;}\n  for(let j=16;j<64;j++){\n   const x=w[j-15],y=w[j-2];\n   const s0=rr(x,7)^rr(x,18)^(x>>>3),s1=rr(y,17)^rr(y,19)^(y>>>10);\n   w[j]=(w[j-16]+s0+w[j-7]+s1)>>>0;\n  }\n  let [p,q,r,s,t,u,v,z]=h;\n  for(let j=0;j<64;j++){\n   const S1=rr(t,6)^rr(t,11)^rr(t,25),ch=(t&u)^(~t&v);\n   const tmp1=(z+S1+ch+K[j]+w[j])>>>0;\n   const S0=rr(p,2)^rr(p,13)^rr(p,22),maj=(p&q)^(p&r)^(q&r);\n   const tmp2=(S0+maj)>>>0;\n   z=v;v=u;u=t;t=(s+tmp1)>>>0;s=r;r=q;q=p;p=(tmp1+tmp2)>>>0;\n  }\n  const c=[p,q,r,s,t,u,v,z];for(let j=0;j<8;j++)h[j]=(h[j]+c[j])>>>0;\n }\n const out=[];for(const v of h)out.push((v>>>24)&255,(v>>>16)&255,(v>>>8)&255,v&255);\n return out;\n}\nfunction hmac(secret, message) {\n let k=utf8Bytes(secret);if(k.length>64)k=sha256Bytes(k);\n while(k.length<64)k.push(0);\n const inner=k.map(x=>x^0x36).concat(utf8Bytes(message));\n const outer=k.map(x=>x^0x5c).concat(sha256Bytes(inner));\n return sha256Bytes(outer).map(x=>x.toString(16).padStart(2,'0')).join('');\n}\nfunction equalSignature(a,b){if(typeof a!=='string'||a.length!==b.length)return false;let n=0;for(let i=0;i<b.length;i++)n|=a.charCodeAt(i)^b.charCodeAt(i);return n===0;}\n\n\nconst sig=(round,sl,nc)=>hmac(CONFIG.QR_SECRET,`FYP_ATTENDANCE_DEMO|2|${course}|${session}|${round}|${sl}|${nc}`).slice(0,40);\nconst sessionRow=all.find(x=>x.kind==='SESSION')||null;\nconst roundId=String(sessionRow?.round_id||'1');\nconst closed=sessionRow?.status==='closed';\nconst attendees=all.filter(x=>x.kind==='ATTENDANCE'&&String(x.round_id)===roundId).sort((a,b)=>String(a.scanned_at).localeCompare(String(b.scanned_at)));\nconst roster=attendees.map(x=>({sisId:String(x.sis_id),studentName:String(x.student_name||('Student '+x.sis_id)),scannedAt:x.scanned_at,status:'Present'}));\nconst makeMeta=(st,round,closedAt='')=>({row_key:'S|'+sessionKey,session_key:sessionKey,kind:'SESSION',round_id:String(round),sis_id:'',student_name:'',status:st,scanned_at:'',token_key:'',record_json:'',closed_at:closedAt});\nconst makeExportUrl=(r)=>CONFIG.PUBLIC_URL+'?action=export&course_lms_id='+encodeURIComponent(course)+'&session_id='+encodeURIComponent(session)+'&round_id='+encodeURIComponent(r)+(CONFIG.LECTURER_ACCESS?'&access='+encodeURIComponent(CONFIG.LECTURER_ACCESS):'');\nconst rowsFor=(r)=>all.filter(x=>x.kind==='ATTENDANCE'&&String(x.round_id)===String(r)).sort((a,b)=>String(a.scanned_at).localeCompare(String(b.scanned_at)));\nif(method==='POST'&&action==='start'&&CONFIG.POST_MODE==='QWICKLY')return fail('New live classes require a NEW Qwickly session_id from the approved session-creation proxy. Update CONFIG.SESSION_ID before reopening the lecturer page.',409,'new_qwickly_session_required');\nif(method==='POST'&&(action==='end'||action==='start')){\n const requestedRound=String(body.roundId||'');\n if(requestedRound&&requestedRound!==roundId)return fail('Session changed after this page opened. Refresh before ending or starting it.',409,'round_mismatch');\n if(action==='end'){\n  if(closed)return result({ok:true,closed:true,roundId,attendeeCount:attendees.length,exportUrl:makeExportUrl(roundId),message:'Session already closed; attendance remains in n8n Data Table.'});\n  return result({ok:true,closed:true,roundId,attendeeCount:attendees.length,exportUrl:makeExportUrl(roundId),message:'Session closed. Check-ins were recorded in n8n Data Table.'},200,'json',makeMeta('closed',roundId,new Date(now).toISOString()));\n }\n if(!closed&&sessionRow)return fail('End the current class before starting a new round.',409,'already_open');\n const nextRound=String(now);\n return result({ok:true,closed:false,roundId:nextRound,message:'New session round started. Historical attendance is preserved.'},200,'json',makeMeta('open',nextRound));\n}\nif(method==='POST'&&action!=='scan'&&action!=='record')return fail('Unknown POST action.',404);\nif(method==='POST'){\n if(closed)return fail('Session has ended. This QR cannot be used.',410,'session_closed');\n const sisId=String(body.sisId??body.sis_id??'').trim();\n if(!/^\\d{7,12}$/.test(sisId))return fail('A valid 7–12 digit SIS ID is required.',400,'invalid_student');\n let qr; try{qr=typeof body.qrData==='string'?JSON.parse(body.qrData):body.qrData;}catch{return fail('Invalid QR JSON.',400,'invalid_qr');}\n if(!qr||qr.type!=='FYP_ATTENDANCE_DEMO'||qr.v!==1)return fail('Unsupported QR format or version.',400,'invalid_qr');\n if(String(qr.courseLmsId)!==course||String(qr.sessionId)!==session||String(qr.roundId)!==roundId)return fail('QR belongs to another course or class round.',409,'session_mismatch');\n if(!Number.isSafeInteger(qr.slot)||!Number.isSafeInteger(qr.nonce)||qr.nonce<0)return fail('QR slot or nonce is invalid.',400,'invalid_qr');\n if(qr.slot!==slot||now>=(qr.slot+1)*CONFIG.ROTATE_MS)return fail('QR expired. Scan the current code.',410,'expired');\n if(!equalSignature(qr.proof,sig(roundId,qr.slot,qr.nonce)))return fail('QR signature is invalid.',401,'invalid_signature');\n const key=`${roundId}|${qr.slot}|${qr.nonce}`;\n if(attendees.some(a=>String(a.token_key)===key))return fail('QR has already been consumed. Scan the next QR.',409,'qr_consumed');\n if(attendees.some(a=>String(a.sis_id)===sisId))return fail('You are already checked in for this class.',409,'already_checked_in');\n const slotCount=attendees.filter(a=>String(a.token_key).startsWith(roundId+'|'+qr.slot+'|')).length;\n if(qr.nonce!==slotCount)return fail('This QR has been replaced. Scan the newest QR.',409,'qr_consumed');\n const id=parseInt(hmac(CONFIG.QR_SECRET,'record|'+sessionKey+'|'+roundId+'|'+sisId).slice(0,8),16);\n const time=new Date(now).toISOString();\n const names=['Aina','Daniel','Siti','Adam','Mei Ling','Amir','Grace','Farah','Jason','Nurul','Ryan','Hana','Kelvin','Nadia','David','Izzah','Sarah','Hakim','Michelle','Afiq'];\n const surnames=['Rahman','Tan','Lim','Abdullah','Lee','Wong','Ismail','Chong','Aziz','Ong','Yusof','Ng','Hassan','Goh','Ibrahim','Chan'];\n let demoName='';const match=/^900000(\\d{3})$/.exec(sisId);\n if(match){const i=Number(match[1]);if(i>=1&&i<=100)demoName=`${names[(i-1)%names.length]} ${surnames[(i*7+3)%surnames.length]}`;}\n if(sisId==='104404156')demoName='Fredly Benny Anak Vilen';\n let studentName=String(body.studentName||body.name||demoName||'Student '+sisId).trim().replace(/[\\x00-\\x1f]/g,' ').slice(0,100);\n if(!studentName)studentName='Student '+sisId;\n const record={id,parent_session:Number(session),user_id:Number(sisId),status_id:1,comment:'SIMULATED ATTENDANCE — no Qwickly write',make_comment_public:false,time_created:time,time_last_edited:time,admin_edited:false,ip_address:'',location_context:0,is_updated:false,mobile_data:{method:'mobile',nfc_is_valid:false,nfc_tag:'',location_name:'Not verified (demo)',zone_status:'NOT_VERIFIED'}};\n const writeRow={row_key:'A|'+sessionKey+'|'+roundId+'|'+sisId,session_key:sessionKey,kind:'ATTENDANCE',round_id:roundId,sis_id:sisId,student_name:studentName,status:'Present',scanned_at:time,token_key:key,record_json:JSON.stringify(record),closed_at:''};\n if(CONFIG.POST_MODE==='QWICKLY')return result({ok:false,success:false,status:'pending_proxy',message:'Awaiting Qwickly confirmation.',demo:false,recordedInQwickly:false,courseLmsId:course,sessionId:session},200,'json',writeRow);\n if(action==='record')return result(record,201,'json',writeRow);\n return result({ok:true,success:true,status:'demo_recorded',message:'Demo attendance checked in successfully. No Qwickly record was created.',demo:true,recordedInQwickly:false,courseCode:CONFIG.UNIT_LABEL,courseLmsId:course,sessionId:session,sisId,studentName,scannedAt:time,record},201,'json',writeRow);\n}\nif(action==='record'){\n const sisId=String(query.sis_id||'');const item=attendees.find(x=>String(x.sis_id)===sisId);\n if(!item)return fail('No demo attendance record found for this student in the current round.',404);\n return result(JSON.parse(item.record_json));\n}\nif(action==='roster')return result({ok:true,demo:CONFIG.POST_MODE!=='QWICKLY',courseLmsId:course,sessionId:session,roundId,closed,attendees:roster,count:roster.length,serverTime:new Date(now).toISOString()});\nif(action==='export'){\n const requestedRound=String(query.round_id||roundId);if(!/^\\d{1,17}$/.test(requestedRound))return fail('Invalid round ID.',400);\n const data=rowsFor(requestedRound).map((a,i)=>({No:i+1,'Course LMS ID':course,'Session ID':session,'Round ID':requestedRound,'Student SIS ID':String(a.sis_id),'Student Name':String(a.student_name),'Status':'Present','Check-in UTC':String(a.scanned_at),'Qwickly Record ID':JSON.parse(a.record_json||'{}').id||'',Source:String(a.status||'').includes('QWICKLY')?'QWICKLY':'N8N_EMULATED','Qwickly Submitted':String(a.status||'').includes('QWICKLY')?'YES':'NO'}));\n if(!data.length)data.push({No:'','Course LMS ID':course,'Session ID':session,'Round ID':requestedRound,'Student SIS ID':'','Student Name':'No check-ins recorded',Status:'','Check-in UTC':'','Qwickly Record ID (Demo)':'',Source:'N8N_EMULATED','Qwickly Submitted':'NO'});\n return result({filename:`FYP_Attendance_${course}_${session}_${requestedRound}.xlsx`,roundId:requestedRound,count:data.length},200,'xlsx',null,data);\n}\nif(action==='token'){\n const sl=slot, current=attendees.filter(a=>String(a.token_key).startsWith(roundId+'|'+sl+'|'));\n const nonce=current.length,tokenKey=roundId+'|'+sl+'|'+nonce;\n const qrData=closed?'':JSON.stringify({type:'FYP_ATTENDANCE_DEMO',v:1,courseLmsId:course,sessionId:session,roundId,slot:sl,nonce,proof:sig(roundId,sl,nonce)});\n return result({ok:true,demo:true,recordedInQwickly:false,closed,courseLmsId:course,sessionId:session,roundId,unitLabel:CONFIG.UNIT_LABEL,rotationSeconds:5,qrData,tokenKey,attendees:roster,attendeeCount:roster.length,serverTime:new Date(now).toISOString(),expiresAt:new Date((sl+1)*CONFIG.ROTATE_MS).toISOString()});\n}\nif(action!=='page'&&action!=='ui')return fail('Unknown GET action.',404);\nconst pageConfig={endpoint:CONFIG.PUBLIC_URL,access:String(query.access||''),courseLmsId:course,sessionId:session,unitLabel:CONFIG.UNIT_LABEL};\nconst html=\"<!doctype html>\\n<html lang=\\\"en\\\"><head><meta charset=\\\"utf-8\\\"/><meta name=\\\"viewport\\\" content=\\\"width=device-width,initial-scale=1\\\"/>\\n<title>Smart Attendance · Lecturer QR</title>\\n<style>\\n:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#1d2433;background:#f4f6f9}*{box-sizing:border-box}body{margin:0;background:#f4f6f9}button{font:inherit;cursor:pointer}.wrap{max-width:1120px;margin:0 auto;padding:28px 22px 44px}.brand{display:flex;align-items:center;gap:12px;font-weight:750;font-size:18px;letter-spacing:-.3px}.brandmark{display:grid;place-items:center;width:46px;height:46px;background:#b31c37;color:#fff;font-weight:900;font-size:22px;border-radius:10px}.brand small{display:block;font-size:12px;font-weight:400;color:#7a8494;margin-top:5px}.top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:23px}.chip{display:inline-flex;gap:7px;align-items:center;background:#fdf0f3;color:#ad1d3e;border:1px solid #f2c6d0;border-radius:30px;padding:8px 13px;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}.headline{margin:0 0 8px;font-size:clamp(24px,3.4vw,35px);line-height:1.15;letter-spacing:-.9px}.sub{margin:0 0 24px;color:#718096;font-size:14px;line-height:1.6}.layout{display:grid;grid-template-columns:minmax(350px,470px) minmax(0,1fr);gap:18px}.card{background:#fff;border:1px solid #e5e9f0;border-radius:16px;box-shadow:0 2px 12px #26334b06}.qrbox{padding:25px 28px 24px;text-align:center}.tiny{font-size:11px;letter-spacing:.08em;font-weight:800;text-transform:uppercase;color:#a31d35}.qrbox h2{font-size:19px;margin:7px 0 4px}.muted{color:#7e8a98;font-size:13px}.qrimage{width:302px;height:302px;display:grid;place-items:center;margin:23px auto 14px;padding:11px;border:1px solid #e4e7ef;border-radius:12px;background:#fff}.qrimage canvas{max-width:100%;height:auto}.loading{color:#a0aabc}.timer{font-size:21px;font-weight:800;font-variant-numeric:tabular-nums;margin:7px 0}.timer small{font-weight:400;font-size:12px;color:#85909c}.track{height:6px;background:#edf0f4;border-radius:10px;overflow:hidden}.fill{height:100%;width:0;background:#b31c37;transition:width .1s linear}.hint{font-size:12px;color:#778394;line-height:1.5;margin:17px 0 0}.right{display:flex;flex-direction:column;gap:18px}.cardPad{padding:23px 25px}.sectionHeading{display:flex;align-items:center;justify-content:space-between;gap:12px}.sectionHeading h3{font-size:17px;letter-spacing:-.35px;margin:0}.counter{border-radius:999px;background:#fce8ed;color:#a31938;font-size:12px;padding:7px 12px;font-weight:800}.statgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:20px}.stat{background:#f7f8fb;padding:14px;border-radius:9px}.stat b{font-size:16px;display:block;margin-top:6px}.stat label{font-size:11px;color:#7b8798;font-weight:650}.live{font-size:12px;color:#4e9a6a;display:flex;align-items:center;gap:8px}.dot{width:7px;height:7px;background:#3fb575;border-radius:50%}.roster{margin-top:15px;max-height:340px;overflow:auto}.entry{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 3px;border-bottom:1px solid #eef0f3}.entry strong{font-size:13px}.entry small{display:block;color:#8892a0;font-size:11px;margin-top:3px}.present{font-size:11px;border-radius:999px;background:#e9f8ef;color:#238f58;padding:5px 9px;font-weight:750}.empty{padding:35px 12px;text-align:center;color:#98a2af;font-size:13px;border:1px dashed #d7dce6;border-radius:10px;margin-top:17px}.buttons{display:flex;flex-wrap:wrap;gap:10px;margin-top:19px}.btn{padding:12px 15px;border-radius:9px;font-size:12px;font-weight:800;border:1px solid #dae0e7;background:white;color:#344256}.primary{background:#a91b37;border-color:#a91b37;color:white}.warn{font-size:12px;color:#a7442d;margin-top:14px}.foot{margin-top:18px;color:#8591a1;font-size:11px}.hide{display:none!important}.error{color:#b32642}.ok{color:#228751}a{color:inherit} @media(max-width:850px){.layout{grid-template-columns:1fr}.qrbox{padding:20px}.qrimage{width:286px;height:286px}.wrap{padding:18px}.top{align-items:flex-start}.cardPad{padding:20px}}\\n</style></head><body><div class=\\\"wrap\\\">\\n<header class=\\\"top\\\"><div class=\\\"brand\\\"><span class=\\\"brandmark\\\">S</span><span>Smart Attendance<small>Swinburne Sarawak · Lecturer Console</small></span></div><span class=\\\"chip\\\">Emulated Qwickly API</span></header>\\n<h1 class=\\\"headline\\\">Class attendance check-in</h1><p class=\\\"sub\\\">Display the rotating QR to students. Check-ins appear in the live attendance list and are saved in the n8n attendance table.</p>\\n<div class=\\\"layout\\\">\\n<section class=\\\"card qrbox\\\"><div class=\\\"tiny\\\">Classroom check-in</div><h2 id=\\\"unit\\\">Class session</h2><div class=\\\"muted\\\" id=\\\"stateLabel\\\">Waiting for server…</div><div class=\\\"qrimage\\\" id=\\\"qr\\\"><span class=\\\"loading\\\">Preparing QR…</span></div><div class=\\\"timer\\\" id=\\\"timer\\\">— <small>seconds</small></div><div class=\\\"track\\\"><div class=\\\"fill\\\" id=\\\"bar\\\"></div></div><p class=\\\"hint\\\" id=\\\"status\\\">Each code expires after 5 seconds and is consumed after one successful scan.</p></section>\\n<aside class=\\\"right\\\"><section class=\\\"card cardPad\\\"><div class=\\\"sectionHeading\\\"><h3>Session information</h3><span class=\\\"live\\\"><span class=\\\"dot\\\"></span>Live</span></div><div class=\\\"statgrid\\\"><div class=\\\"stat\\\"><label>COURSE LMS ID</label><b id=\\\"course\\\">—</b></div><div class=\\\"stat\\\"><label>SESSION ID</label><b id=\\\"session\\\">—</b></div><div class=\\\"stat\\\"><label>SESSION ROUND</label><b id=\\\"round\\\">—</b></div><div class=\\\"stat\\\"><label>SESSION STATUS</label><b id=\\\"state\\\">Open</b></div></div></section>\\n<section class=\\\"card cardPad\\\"><div class=\\\"sectionHeading\\\"><h3>Students checked in</h3><span class=\\\"counter\\\" id=\\\"total\\\">0 students</span></div><div class=\\\"roster\\\" id=\\\"roster\\\"><div class=\\\"empty\\\">No students have scanned this class QR yet.</div></div><div class=\\\"buttons\\\"><button class=\\\"btn primary\\\" id=\\\"end\\\">End session &amp; export Excel</button><button class=\\\"btn\\\" id=\\\"download\\\">Download Excel</button><button class=\\\"btn hide\\\" id=\\\"restart\\\">Start new class</button></div><div class=\\\"warn\\\" id=\\\"alert\\\"></div></section></aside></div>\\n<p class=\\\"foot\\\">DEMONSTRATION SYSTEM · Not connected to live Qwickly. Student names are provided by the demo app and are not identity-verified. The attendance ledger persists in n8n Data Tables.</p></div>\\n<script>\\n/* MIT QRCode implementation, adapted from Kazuhiko Arase via qrcode-terminal. */\\n(function(){\\nconst modules={\\\"./QR8bitByte\\\":function(module,exports,require){\\nvar QRMode = require('./QRMode');\\n\\nfunction QR8bitByte(data) {\\n\\tthis.mode = QRMode.MODE_8BIT_BYTE;\\n\\tthis.data = data;\\n}\\n\\nQR8bitByte.prototype = {\\n\\n\\tgetLength : function() {\\n\\t\\treturn this.data.length;\\n\\t},\\n\\t\\n\\twrite : function(buffer) {\\n\\t\\tfor (var i = 0; i < this.data.length; i++) {\\n\\t\\t\\t// not JIS ...\\n\\t\\t\\tbuffer.put(this.data.charCodeAt(i), 8);\\n\\t\\t}\\n\\t}\\n};\\n\\nmodule.exports = QR8bitByte;\\n\\n},\\\"./QRBitBuffer\\\":function(module,exports,require){\\nfunction QRBitBuffer() {\\n\\tthis.buffer = [];\\n\\tthis.length = 0;\\n}\\n\\nQRBitBuffer.prototype = {\\n\\n\\tget : function(index) {\\n\\t\\tvar bufIndex = Math.floor(index / 8);\\n\\t\\treturn ( (this.buffer[bufIndex] >>> (7 - index % 8) ) & 1) == 1;\\n\\t},\\n\\t\\n\\tput : function(num, length) {\\n\\t\\tfor (var i = 0; i < length; i++) {\\n\\t\\t\\tthis.putBit( ( (num >>> (length - i - 1) ) & 1) == 1);\\n\\t\\t}\\n\\t},\\n\\t\\n\\tgetLengthInBits : function() {\\n\\t\\treturn this.length;\\n\\t},\\n\\t\\n\\tputBit : function(bit) {\\n\\t\\n\\t\\tvar bufIndex = Math.floor(this.length / 8);\\n\\t\\tif (this.buffer.length <= bufIndex) {\\n\\t\\t\\tthis.buffer.push(0);\\n\\t\\t}\\n\\t\\n\\t\\tif (bit) {\\n\\t\\t\\tthis.buffer[bufIndex] |= (0x80 >>> (this.length % 8) );\\n\\t\\t}\\n\\t\\n\\t\\tthis.length++;\\n\\t}\\n};\\n\\nmodule.exports = QRBitBuffer;\\n\\n},\\\"./QRErrorCorrectLevel\\\":function(module,exports,require){\\nmodule.exports = {\\n\\tL : 1,\\n\\tM : 0,\\n\\tQ : 3,\\n\\tH : 2\\n};\\n\\n\\n},\\\"./QRMaskPattern\\\":function(module,exports,require){\\nmodule.exports = {\\n\\tPATTERN000 : 0,\\n\\tPATTERN001 : 1,\\n\\tPATTERN010 : 2,\\n\\tPATTERN011 : 3,\\n\\tPATTERN100 : 4,\\n\\tPATTERN101 : 5,\\n\\tPATTERN110 : 6,\\n\\tPATTERN111 : 7\\n};\\n\\n},\\\"./QRMath\\\":function(module,exports,require){\\nvar QRMath = {\\n\\n\\tglog : function(n) {\\n\\t\\n\\t\\tif (n < 1) {\\n\\t\\t\\tthrow new Error(\\\"glog(\\\" + n + \\\")\\\");\\n\\t\\t}\\n\\t\\t\\n\\t\\treturn QRMath.LOG_TABLE[n];\\n\\t},\\n\\t\\n\\tgexp : function(n) {\\n\\t\\n\\t\\twhile (n < 0) {\\n\\t\\t\\tn += 255;\\n\\t\\t}\\n\\t\\n\\t\\twhile (n >= 256) {\\n\\t\\t\\tn -= 255;\\n\\t\\t}\\n\\t\\n\\t\\treturn QRMath.EXP_TABLE[n];\\n\\t},\\n\\t\\n\\tEXP_TABLE : new Array(256),\\n\\t\\n\\tLOG_TABLE : new Array(256)\\n\\n};\\n\\t\\nfor (var i = 0; i < 8; i++) {\\n\\tQRMath.EXP_TABLE[i] = 1 << i;\\n}\\nfor (var i = 8; i < 256; i++) {\\n\\tQRMath.EXP_TABLE[i] = QRMath.EXP_TABLE[i - 4]\\n\\t\\t^ QRMath.EXP_TABLE[i - 5]\\n\\t\\t^ QRMath.EXP_TABLE[i - 6]\\n\\t\\t^ QRMath.EXP_TABLE[i - 8];\\n}\\nfor (var i = 0; i < 255; i++) {\\n\\tQRMath.LOG_TABLE[QRMath.EXP_TABLE[i] ] = i;\\n}\\n\\nmodule.exports = QRMath;\\n\\n},\\\"./QRMode\\\":function(module,exports,require){\\nmodule.exports = {\\n    MODE_NUMBER :       1 << 0,\\n    MODE_ALPHA_NUM :    1 << 1,\\n    MODE_8BIT_BYTE :    1 << 2,\\n    MODE_KANJI :        1 << 3\\n};\\n\\n},\\\"./QRPolynomial\\\":function(module,exports,require){\\nvar QRMath = require('./QRMath');\\n\\nfunction QRPolynomial(num, shift) {\\n\\tif (num.length === undefined) {\\n\\t\\tthrow new Error(num.length + \\\"/\\\" + shift);\\n\\t}\\n\\n\\tvar offset = 0;\\n\\n\\twhile (offset < num.length && num[offset] === 0) {\\n\\t\\toffset++;\\n\\t}\\n\\n\\tthis.num = new Array(num.length - offset + shift);\\n\\tfor (var i = 0; i < num.length - offset; i++) {\\n\\t\\tthis.num[i] = num[i + offset];\\n\\t}\\n}\\n\\nQRPolynomial.prototype = {\\n\\n\\tget : function(index) {\\n\\t\\treturn this.num[index];\\n\\t},\\n\\t\\n\\tgetLength : function() {\\n\\t\\treturn this.num.length;\\n\\t},\\n\\t\\n\\tmultiply : function(e) {\\n\\t\\n\\t\\tvar num = new Array(this.getLength() + e.getLength() - 1);\\n\\t\\n\\t\\tfor (var i = 0; i < this.getLength(); i++) {\\n\\t\\t\\tfor (var j = 0; j < e.getLength(); j++) {\\n\\t\\t\\t\\tnum[i + j] ^= QRMath.gexp(QRMath.glog(this.get(i) ) + QRMath.glog(e.get(j) ) );\\n\\t\\t\\t}\\n\\t\\t}\\n\\t\\n\\t\\treturn new QRPolynomial(num, 0);\\n\\t},\\n\\t\\n\\tmod : function(e) {\\n\\t\\n\\t\\tif (this.getLength() - e.getLength() < 0) {\\n\\t\\t\\treturn this;\\n\\t\\t}\\n\\t\\n\\t\\tvar ratio = QRMath.glog(this.get(0) ) - QRMath.glog(e.get(0) );\\n\\t\\n\\t\\tvar num = new Array(this.getLength() );\\n\\t\\t\\n\\t\\tfor (var i = 0; i < this.getLength(); i++) {\\n\\t\\t\\tnum[i] = this.get(i);\\n\\t\\t}\\n\\t\\t\\n\\t\\tfor (var x = 0; x < e.getLength(); x++) {\\n\\t\\t\\tnum[x] ^= QRMath.gexp(QRMath.glog(e.get(x) ) + ratio);\\n\\t\\t}\\n\\t\\n\\t\\t// recursive call\\n\\t\\treturn new QRPolynomial(num, 0).mod(e);\\n\\t}\\n};\\n\\nmodule.exports = QRPolynomial;\\n\\n},\\\"./QRRSBlock\\\":function(module,exports,require){\\nvar QRErrorCorrectLevel = require('./QRErrorCorrectLevel');\\n\\nfunction QRRSBlock(totalCount, dataCount) {\\n\\tthis.totalCount = totalCount;\\n\\tthis.dataCount  = dataCount;\\n}\\n\\nQRRSBlock.RS_BLOCK_TABLE = [\\n\\n\\t// L\\n\\t// M\\n\\t// Q\\n\\t// H\\n\\n\\t// 1\\n\\t[1, 26, 19],\\n\\t[1, 26, 16],\\n\\t[1, 26, 13],\\n\\t[1, 26, 9],\\n\\t\\n\\t// 2\\n\\t[1, 44, 34],\\n\\t[1, 44, 28],\\n\\t[1, 44, 22],\\n\\t[1, 44, 16],\\n\\n\\t// 3\\n\\t[1, 70, 55],\\n\\t[1, 70, 44],\\n\\t[2, 35, 17],\\n\\t[2, 35, 13],\\n\\n\\t// 4\\t\\t\\n\\t[1, 100, 80],\\n\\t[2, 50, 32],\\n\\t[2, 50, 24],\\n\\t[4, 25, 9],\\n\\t\\n\\t// 5\\n\\t[1, 134, 108],\\n\\t[2, 67, 43],\\n\\t[2, 33, 15, 2, 34, 16],\\n\\t[2, 33, 11, 2, 34, 12],\\n\\t\\n\\t// 6\\n\\t[2, 86, 68],\\n\\t[4, 43, 27],\\n\\t[4, 43, 19],\\n\\t[4, 43, 15],\\n\\t\\n\\t// 7\\t\\t\\n\\t[2, 98, 78],\\n\\t[4, 49, 31],\\n\\t[2, 32, 14, 4, 33, 15],\\n\\t[4, 39, 13, 1, 40, 14],\\n\\t\\n\\t// 8\\n\\t[2, 121, 97],\\n\\t[2, 60, 38, 2, 61, 39],\\n\\t[4, 40, 18, 2, 41, 19],\\n\\t[4, 40, 14, 2, 41, 15],\\n\\t\\n\\t// 9\\n\\t[2, 146, 116],\\n\\t[3, 58, 36, 2, 59, 37],\\n\\t[4, 36, 16, 4, 37, 17],\\n\\t[4, 36, 12, 4, 37, 13],\\n\\t\\n\\t// 10\\t\\t\\n\\t[2, 86, 68, 2, 87, 69],\\n\\t[4, 69, 43, 1, 70, 44],\\n\\t[6, 43, 19, 2, 44, 20],\\n\\t[6, 43, 15, 2, 44, 16],\\n\\n\\t// 11\\n\\t[4, 101, 81],\\n\\t[1, 80, 50, 4, 81, 51],\\n\\t[4, 50, 22, 4, 51, 23],\\n\\t[3, 36, 12, 8, 37, 13],\\n\\n\\t// 12\\n\\t[2, 116, 92, 2, 117, 93],\\n\\t[6, 58, 36, 2, 59, 37],\\n\\t[4, 46, 20, 6, 47, 21],\\n\\t[7, 42, 14, 4, 43, 15],\\n\\n\\t// 13\\n\\t[4, 133, 107],\\n\\t[8, 59, 37, 1, 60, 38],\\n\\t[8, 44, 20, 4, 45, 21],\\n\\t[12, 33, 11, 4, 34, 12],\\n\\n\\t// 14\\n\\t[3, 145, 115, 1, 146, 116],\\n\\t[4, 64, 40, 5, 65, 41],\\n\\t[11, 36, 16, 5, 37, 17],\\n\\t[11, 36, 12, 5, 37, 13],\\n\\n\\t// 15\\n\\t[5, 109, 87, 1, 110, 88],\\n\\t[5, 65, 41, 5, 66, 42],\\n\\t[5, 54, 24, 7, 55, 25],\\n\\t[11, 36, 12],\\n\\n\\t// 16\\n\\t[5, 122, 98, 1, 123, 99],\\n\\t[7, 73, 45, 3, 74, 46],\\n\\t[15, 43, 19, 2, 44, 20],\\n\\t[3, 45, 15, 13, 46, 16],\\n\\n\\t// 17\\n\\t[1, 135, 107, 5, 136, 108],\\n\\t[10, 74, 46, 1, 75, 47],\\n\\t[1, 50, 22, 15, 51, 23],\\n\\t[2, 42, 14, 17, 43, 15],\\n\\n\\t// 18\\n\\t[5, 150, 120, 1, 151, 121],\\n\\t[9, 69, 43, 4, 70, 44],\\n\\t[17, 50, 22, 1, 51, 23],\\n\\t[2, 42, 14, 19, 43, 15],\\n\\n\\t// 19\\n\\t[3, 141, 113, 4, 142, 114],\\n\\t[3, 70, 44, 11, 71, 45],\\n\\t[17, 47, 21, 4, 48, 22],\\n\\t[9, 39, 13, 16, 40, 14],\\n\\n\\t// 20\\n\\t[3, 135, 107, 5, 136, 108],\\n\\t[3, 67, 41, 13, 68, 42],\\n\\t[15, 54, 24, 5, 55, 25],\\n\\t[15, 43, 15, 10, 44, 16],\\n\\n\\t// 21\\n\\t[4, 144, 116, 4, 145, 117],\\n\\t[17, 68, 42],\\n\\t[17, 50, 22, 6, 51, 23],\\n\\t[19, 46, 16, 6, 47, 17],\\n\\n\\t// 22\\n\\t[2, 139, 111, 7, 140, 112],\\n\\t[17, 74, 46],\\n\\t[7, 54, 24, 16, 55, 25],\\n\\t[34, 37, 13],\\n\\n\\t// 23\\n\\t[4, 151, 121, 5, 152, 122],\\n\\t[4, 75, 47, 14, 76, 48],\\n\\t[11, 54, 24, 14, 55, 25],\\n\\t[16, 45, 15, 14, 46, 16],\\n\\n\\t// 24\\n\\t[6, 147, 117, 4, 148, 118],\\n\\t[6, 73, 45, 14, 74, 46],\\n\\t[11, 54, 24, 16, 55, 25],\\n\\t[30, 46, 16, 2, 47, 17],\\n\\n\\t// 25\\n\\t[8, 132, 106, 4, 133, 107],\\n\\t[8, 75, 47, 13, 76, 48],\\n\\t[7, 54, 24, 22, 55, 25],\\n\\t[22, 45, 15, 13, 46, 16],\\n\\n\\t// 26\\n\\t[10, 142, 114, 2, 143, 115],\\n\\t[19, 74, 46, 4, 75, 47],\\n\\t[28, 50, 22, 6, 51, 23],\\n\\t[33, 46, 16, 4, 47, 17],\\n\\n\\t// 27\\n\\t[8, 152, 122, 4, 153, 123],\\n\\t[22, 73, 45, 3, 74, 46],\\n\\t[8, 53, 23, 26, 54, 24],\\n\\t[12, 45, 15, 28, 46, 16],\\n\\n\\t// 28\\n\\t[3, 147, 117, 10, 148, 118],\\n\\t[3, 73, 45, 23, 74, 46],\\n\\t[4, 54, 24, 31, 55, 25],\\n\\t[11, 45, 15, 31, 46, 16],\\n\\n\\t// 29\\n\\t[7, 146, 116, 7, 147, 117],\\n\\t[21, 73, 45, 7, 74, 46],\\n\\t[1, 53, 23, 37, 54, 24],\\n\\t[19, 45, 15, 26, 46, 16],\\n\\n\\t// 30\\n\\t[5, 145, 115, 10, 146, 116],\\n\\t[19, 75, 47, 10, 76, 48],\\n\\t[15, 54, 24, 25, 55, 25],\\n\\t[23, 45, 15, 25, 46, 16],\\n\\n\\t// 31\\n\\t[13, 145, 115, 3, 146, 116],\\n\\t[2, 74, 46, 29, 75, 47],\\n\\t[42, 54, 24, 1, 55, 25],\\n\\t[23, 45, 15, 28, 46, 16],\\n\\n\\t// 32\\n\\t[17, 145, 115],\\n\\t[10, 74, 46, 23, 75, 47],\\n\\t[10, 54, 24, 35, 55, 25],\\n\\t[19, 45, 15, 35, 46, 16],\\n\\n\\t// 33\\n\\t[17, 145, 115, 1, 146, 116],\\n\\t[14, 74, 46, 21, 75, 47],\\n\\t[29, 54, 24, 19, 55, 25],\\n\\t[11, 45, 15, 46, 46, 16],\\n\\n\\t// 34\\n\\t[13, 145, 115, 6, 146, 116],\\n\\t[14, 74, 46, 23, 75, 47],\\n\\t[44, 54, 24, 7, 55, 25],\\n\\t[59, 46, 16, 1, 47, 17],\\n\\n\\t// 35\\n\\t[12, 151, 121, 7, 152, 122],\\n\\t[12, 75, 47, 26, 76, 48],\\n\\t[39, 54, 24, 14, 55, 25],\\n\\t[22, 45, 15, 41, 46, 16],\\n\\n\\t// 36\\n\\t[6, 151, 121, 14, 152, 122],\\n\\t[6, 75, 47, 34, 76, 48],\\n\\t[46, 54, 24, 10, 55, 25],\\n\\t[2, 45, 15, 64, 46, 16],\\n\\n\\t// 37\\n\\t[17, 152, 122, 4, 153, 123],\\n\\t[29, 74, 46, 14, 75, 47],\\n\\t[49, 54, 24, 10, 55, 25],\\n\\t[24, 45, 15, 46, 46, 16],\\n\\n\\t// 38\\n\\t[4, 152, 122, 18, 153, 123],\\n\\t[13, 74, 46, 32, 75, 47],\\n\\t[48, 54, 24, 14, 55, 25],\\n\\t[42, 45, 15, 32, 46, 16],\\n\\n\\t// 39\\n\\t[20, 147, 117, 4, 148, 118],\\n\\t[40, 75, 47, 7, 76, 48],\\n\\t[43, 54, 24, 22, 55, 25],\\n\\t[10, 45, 15, 67, 46, 16],\\n\\n\\t// 40\\n\\t[19, 148, 118, 6, 149, 119],\\n\\t[18, 75, 47, 31, 76, 48],\\n\\t[34, 54, 24, 34, 55, 25],\\n\\t[20, 45, 15, 61, 46, 16]\\n];\\n\\nQRRSBlock.getRSBlocks = function(typeNumber, errorCorrectLevel) {\\n\\t\\n\\tvar rsBlock = QRRSBlock.getRsBlockTable(typeNumber, errorCorrectLevel);\\n\\t\\n\\tif (rsBlock === undefined) {\\n\\t\\tthrow new Error(\\\"bad rs block @ typeNumber:\\\" + typeNumber + \\\"/errorCorrectLevel:\\\" + errorCorrectLevel);\\n\\t}\\n\\n\\tvar length = rsBlock.length / 3;\\n\\t\\n\\tvar list = [];\\n\\t\\n\\tfor (var i = 0; i < length; i++) {\\n\\n\\t\\tvar count = rsBlock[i * 3 + 0];\\n\\t\\tvar totalCount = rsBlock[i * 3 + 1];\\n\\t\\tvar dataCount  = rsBlock[i * 3 + 2];\\n\\n\\t\\tfor (var j = 0; j < count; j++) {\\n\\t\\t\\tlist.push(new QRRSBlock(totalCount, dataCount) );\\t\\n\\t\\t}\\n\\t}\\n\\t\\n\\treturn list;\\n};\\n\\nQRRSBlock.getRsBlockTable = function(typeNumber, errorCorrectLevel) {\\n\\n\\tswitch(errorCorrectLevel) {\\n\\tcase QRErrorCorrectLevel.L :\\n\\t\\treturn QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 0];\\n\\tcase QRErrorCorrectLevel.M :\\n\\t\\treturn QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];\\n\\tcase QRErrorCorrectLevel.Q :\\n\\t\\treturn QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 2];\\n\\tcase QRErrorCorrectLevel.H :\\n\\t\\treturn QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 3];\\n\\tdefault :\\n\\t\\treturn undefined;\\n\\t}\\n};\\n\\nmodule.exports = QRRSBlock;\\n\\n},\\\"./QRUtil\\\":function(module,exports,require){\\nvar QRMode = require('./QRMode');\\nvar QRPolynomial = require('./QRPolynomial');\\nvar QRMath = require('./QRMath');\\nvar QRMaskPattern = require('./QRMaskPattern');\\n\\nvar QRUtil = {\\n\\n    PATTERN_POSITION_TABLE : [\\n        [],\\n        [6, 18],\\n        [6, 22],\\n        [6, 26],\\n        [6, 30],\\n        [6, 34],\\n        [6, 22, 38],\\n        [6, 24, 42],\\n        [6, 26, 46],\\n        [6, 28, 50],\\n        [6, 30, 54],        \\n        [6, 32, 58],\\n        [6, 34, 62],\\n        [6, 26, 46, 66],\\n        [6, 26, 48, 70],\\n        [6, 26, 50, 74],\\n        [6, 30, 54, 78],\\n        [6, 30, 56, 82],\\n        [6, 30, 58, 86],\\n        [6, 34, 62, 90],\\n        [6, 28, 50, 72, 94],\\n        [6, 26, 50, 74, 98],\\n        [6, 30, 54, 78, 102],\\n        [6, 28, 54, 80, 106],\\n        [6, 32, 58, 84, 110],\\n        [6, 30, 58, 86, 114],\\n        [6, 34, 62, 90, 118],\\n        [6, 26, 50, 74, 98, 122],\\n        [6, 30, 54, 78, 102, 126],\\n        [6, 26, 52, 78, 104, 130],\\n        [6, 30, 56, 82, 108, 134],\\n        [6, 34, 60, 86, 112, 138],\\n        [6, 30, 58, 86, 114, 142],\\n        [6, 34, 62, 90, 118, 146],\\n        [6, 30, 54, 78, 102, 126, 150],\\n        [6, 24, 50, 76, 102, 128, 154],\\n        [6, 28, 54, 80, 106, 132, 158],\\n        [6, 32, 58, 84, 110, 136, 162],\\n        [6, 26, 54, 82, 110, 138, 166],\\n        [6, 30, 58, 86, 114, 142, 170]\\n    ],\\n\\n    G15 : (1 << 10) | (1 << 8) | (1 << 5) | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0),\\n    G18 : (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0),\\n    G15_MASK : (1 << 14) | (1 << 12) | (1 << 10)    | (1 << 4) | (1 << 1),\\n\\n    getBCHTypeInfo : function(data) {\\n        var d = data << 10;\\n        while (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G15) >= 0) {\\n            d ^= (QRUtil.G15 << (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G15) ) );    \\n        }\\n        return ( (data << 10) | d) ^ QRUtil.G15_MASK;\\n    },\\n\\n    getBCHTypeNumber : function(data) {\\n        var d = data << 12;\\n        while (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G18) >= 0) {\\n            d ^= (QRUtil.G18 << (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G18) ) );    \\n        }\\n        return (data << 12) | d;\\n    },\\n\\n    getBCHDigit : function(data) {\\n\\n        var digit = 0;\\n\\n        while (data !== 0) {\\n            digit++;\\n            data >>>= 1;\\n        }\\n\\n        return digit;\\n    },\\n\\n    getPatternPosition : function(typeNumber) {\\n        return QRUtil.PATTERN_POSITION_TABLE[typeNumber - 1];\\n    },\\n\\n    getMask : function(maskPattern, i, j) {\\n        \\n        switch (maskPattern) {\\n            \\n        case QRMaskPattern.PATTERN000 : return (i + j) % 2 === 0;\\n        case QRMaskPattern.PATTERN001 : return i % 2 === 0;\\n        case QRMaskPattern.PATTERN010 : return j % 3 === 0;\\n        case QRMaskPattern.PATTERN011 : return (i + j) % 3 === 0;\\n        case QRMaskPattern.PATTERN100 : return (Math.floor(i / 2) + Math.floor(j / 3) ) % 2 === 0;\\n        case QRMaskPattern.PATTERN101 : return (i * j) % 2 + (i * j) % 3 === 0;\\n        case QRMaskPattern.PATTERN110 : return ( (i * j) % 2 + (i * j) % 3) % 2 === 0;\\n        case QRMaskPattern.PATTERN111 : return ( (i * j) % 3 + (i + j) % 2) % 2 === 0;\\n\\n        default :\\n            throw new Error(\\\"bad maskPattern:\\\" + maskPattern);\\n        }\\n    },\\n\\n    getErrorCorrectPolynomial : function(errorCorrectLength) {\\n\\n        var a = new QRPolynomial([1], 0);\\n\\n        for (var i = 0; i < errorCorrectLength; i++) {\\n            a = a.multiply(new QRPolynomial([1, QRMath.gexp(i)], 0) );\\n        }\\n\\n        return a;\\n    },\\n\\n    getLengthInBits : function(mode, type) {\\n\\n        if (1 <= type && type < 10) {\\n\\n            // 1 - 9\\n\\n            switch(mode) {\\n            case QRMode.MODE_NUMBER     : return 10;\\n            case QRMode.MODE_ALPHA_NUM  : return 9;\\n            case QRMode.MODE_8BIT_BYTE  : return 8;\\n            case QRMode.MODE_KANJI      : return 8;\\n            default :\\n                throw new Error(\\\"mode:\\\" + mode);\\n            }\\n\\n        } else if (type < 27) {\\n\\n            // 10 - 26\\n\\n            switch(mode) {\\n            case QRMode.MODE_NUMBER     : return 12;\\n            case QRMode.MODE_ALPHA_NUM  : return 11;\\n            case QRMode.MODE_8BIT_BYTE  : return 16;\\n            case QRMode.MODE_KANJI      : return 10;\\n            default :\\n                throw new Error(\\\"mode:\\\" + mode);\\n            }\\n\\n        } else if (type < 41) {\\n\\n            // 27 - 40\\n\\n            switch(mode) {\\n            case QRMode.MODE_NUMBER     : return 14;\\n            case QRMode.MODE_ALPHA_NUM  : return 13;\\n            case QRMode.MODE_8BIT_BYTE  : return 16;\\n            case QRMode.MODE_KANJI      : return 12;\\n            default :\\n                throw new Error(\\\"mode:\\\" + mode);\\n            }\\n\\n        } else {\\n            throw new Error(\\\"type:\\\" + type);\\n        }\\n    },\\n\\n    getLostPoint : function(qrCode) {\\n        \\n        var moduleCount = qrCode.getModuleCount();\\n        var lostPoint = 0;\\n        var row = 0; \\n        var col = 0;\\n\\n        \\n        // LEVEL1\\n        \\n        for (row = 0; row < moduleCount; row++) {\\n\\n            for (col = 0; col < moduleCount; col++) {\\n\\n                var sameCount = 0;\\n                var dark = qrCode.isDark(row, col);\\n\\n                for (var r = -1; r <= 1; r++) {\\n\\n                    if (row + r < 0 || moduleCount <= row + r) {\\n                        continue;\\n                    }\\n\\n                    for (var c = -1; c <= 1; c++) {\\n\\n                        if (col + c < 0 || moduleCount <= col + c) {\\n                            continue;\\n                        }\\n\\n                        if (r === 0 && c === 0) {\\n                            continue;\\n                        }\\n\\n                        if (dark === qrCode.isDark(row + r, col + c) ) {\\n                            sameCount++;\\n                        }\\n                    }\\n                }\\n\\n                if (sameCount > 5) {\\n                    lostPoint += (3 + sameCount - 5);\\n                }\\n            }\\n        }\\n\\n        // LEVEL2\\n\\n        for (row = 0; row < moduleCount - 1; row++) {\\n            for (col = 0; col < moduleCount - 1; col++) {\\n                var count = 0;\\n                if (qrCode.isDark(row,     col    ) ) count++;\\n                if (qrCode.isDark(row + 1, col    ) ) count++;\\n                if (qrCode.isDark(row,     col + 1) ) count++;\\n                if (qrCode.isDark(row + 1, col + 1) ) count++;\\n                if (count === 0 || count === 4) {\\n                    lostPoint += 3;\\n                }\\n            }\\n        }\\n\\n        // LEVEL3\\n\\n        for (row = 0; row < moduleCount; row++) {\\n            for (col = 0; col < moduleCount - 6; col++) {\\n                if (qrCode.isDark(row, col) && \\n                        !qrCode.isDark(row, col + 1) && \\n                         qrCode.isDark(row, col + 2) && \\n                         qrCode.isDark(row, col + 3) && \\n                         qrCode.isDark(row, col + 4) && \\n                        !qrCode.isDark(row, col + 5) && \\n                         qrCode.isDark(row, col + 6) ) {\\n                    lostPoint += 40;\\n                }\\n            }\\n        }\\n\\n        for (col = 0; col < moduleCount; col++) {\\n            for (row = 0; row < moduleCount - 6; row++) {\\n                if (qrCode.isDark(row, col) &&\\n                        !qrCode.isDark(row + 1, col) &&\\n                         qrCode.isDark(row + 2, col) &&\\n                         qrCode.isDark(row + 3, col) &&\\n                         qrCode.isDark(row + 4, col) &&\\n                        !qrCode.isDark(row + 5, col) &&\\n                         qrCode.isDark(row + 6, col) ) {\\n                    lostPoint += 40;\\n                }\\n            }\\n        }\\n\\n        // LEVEL4\\n        \\n        var darkCount = 0;\\n\\n        for (col = 0; col < moduleCount; col++) {\\n            for (row = 0; row < moduleCount; row++) {\\n                if (qrCode.isDark(row, col) ) {\\n                    darkCount++;\\n                }\\n            }\\n        }\\n        \\n        var ratio = Math.abs(100 * darkCount / moduleCount / moduleCount - 50) / 5;\\n        lostPoint += ratio * 10;\\n\\n        return lostPoint;       \\n    }\\n\\n};\\n\\nmodule.exports = QRUtil;\\n\\n},\\\"./index\\\":function(module,exports,require){\\n//---------------------------------------------------------------------\\n// QRCode for JavaScript\\n//\\n// Copyright (c) 2009 Kazuhiko Arase\\n//\\n// URL: http://www.d-project.com/\\n//\\n// Licensed under the MIT license:\\n//   http://www.opensource.org/licenses/mit-license.php\\n//\\n// The word \\\"QR Code\\\" is registered trademark of \\n// DENSO WAVE INCORPORATED\\n//   http://www.denso-wave.com/qrcode/faqpatent-e.html\\n//\\n//---------------------------------------------------------------------\\n// Modified to work in node for this project (and some refactoring)\\n//---------------------------------------------------------------------\\n\\nvar QR8bitByte = require('./QR8bitByte');\\nvar QRUtil = require('./QRUtil');\\nvar QRPolynomial = require('./QRPolynomial');\\nvar QRRSBlock = require('./QRRSBlock');\\nvar QRBitBuffer = require('./QRBitBuffer');\\n\\nfunction QRCode(typeNumber, errorCorrectLevel) {\\n\\tthis.typeNumber = typeNumber;\\n\\tthis.errorCorrectLevel = errorCorrectLevel;\\n\\tthis.modules = null;\\n\\tthis.moduleCount = 0;\\n\\tthis.dataCache = null;\\n\\tthis.dataList = [];\\n}\\n\\nQRCode.prototype = {\\n\\t\\n\\taddData : function(data) {\\n\\t\\tvar newData = new QR8bitByte(data);\\n\\t\\tthis.dataList.push(newData);\\n\\t\\tthis.dataCache = null;\\n\\t},\\n\\t\\n\\tisDark : function(row, col) {\\n\\t\\tif (row < 0 || this.moduleCount <= row || col < 0 || this.moduleCount <= col) {\\n\\t\\t\\tthrow new Error(row + \\\",\\\" + col);\\n\\t\\t}\\n\\t\\treturn this.modules[row][col];\\n\\t},\\n\\n\\tgetModuleCount : function() {\\n\\t\\treturn this.moduleCount;\\n\\t},\\n\\t\\n\\tmake : function() {\\n\\t\\t// Calculate automatically typeNumber if provided is < 1\\n\\t\\tif (this.typeNumber < 1 ){\\n\\t\\t\\tvar typeNumber = 1;\\n\\t\\t\\tfor (typeNumber = 1; typeNumber < 40; typeNumber++) {\\n\\t\\t\\t\\tvar rsBlocks = QRRSBlock.getRSBlocks(typeNumber, this.errorCorrectLevel);\\n\\n\\t\\t\\t\\tvar buffer = new QRBitBuffer();\\n\\t\\t\\t\\tvar totalDataCount = 0;\\n\\t\\t\\t\\tfor (var i = 0; i < rsBlocks.length; i++) {\\n\\t\\t\\t\\t\\ttotalDataCount += rsBlocks[i].dataCount;\\n\\t\\t\\t\\t}\\n\\n\\t\\t\\t\\tfor (var x = 0; x < this.dataList.length; x++) {\\n\\t\\t\\t\\t\\tvar data = this.dataList[x];\\n\\t\\t\\t\\t\\tbuffer.put(data.mode, 4);\\n\\t\\t\\t\\t\\tbuffer.put(data.getLength(), QRUtil.getLengthInBits(data.mode, typeNumber) );\\n\\t\\t\\t\\t\\tdata.write(buffer);\\n\\t\\t\\t\\t}\\n\\t\\t\\t\\tif (buffer.getLengthInBits() <= totalDataCount * 8)\\n\\t\\t\\t\\t\\tbreak;\\n\\t\\t\\t}\\n\\t\\t\\tthis.typeNumber = typeNumber;\\n\\t\\t}\\n\\t\\tthis.makeImpl(false, this.getBestMaskPattern() );\\n\\t},\\n\\t\\n\\tmakeImpl : function(test, maskPattern) {\\n\\t\\t\\n\\t\\tthis.moduleCount = this.typeNumber * 4 + 17;\\n\\t\\tthis.modules = new Array(this.moduleCount);\\n\\t\\t\\n\\t\\tfor (var row = 0; row < this.moduleCount; row++) {\\n\\t\\t\\t\\n\\t\\t\\tthis.modules[row] = new Array(this.moduleCount);\\n\\t\\t\\t\\n\\t\\t\\tfor (var col = 0; col < this.moduleCount; col++) {\\n\\t\\t\\t\\tthis.modules[row][col] = null;//(col + row) % 3;\\n\\t\\t\\t}\\n\\t\\t}\\n\\t\\n\\t\\tthis.setupPositionProbePattern(0, 0);\\n\\t\\tthis.setupPositionProbePattern(this.moduleCount - 7, 0);\\n\\t\\tthis.setupPositionProbePattern(0, this.moduleCount - 7);\\n\\t\\tthis.setupPositionAdjustPattern();\\n\\t\\tthis.setupTimingPattern();\\n\\t\\tthis.setupTypeInfo(test, maskPattern);\\n\\t\\t\\n\\t\\tif (this.typeNumber >= 7) {\\n\\t\\t\\tthis.setupTypeNumber(test);\\n\\t\\t}\\n\\t\\n\\t\\tif (this.dataCache === null) {\\n\\t\\t\\tthis.dataCache = QRCode.createData(this.typeNumber, this.errorCorrectLevel, this.dataList);\\n\\t\\t}\\n\\t\\n\\t\\tthis.mapData(this.dataCache, maskPattern);\\n\\t},\\n\\n\\tsetupPositionProbePattern : function(row, col)  {\\n\\t\\t\\n\\t\\tfor (var r = -1; r <= 7; r++) {\\n\\t\\t\\t\\n\\t\\t\\tif (row + r <= -1 || this.moduleCount <= row + r) continue;\\n\\t\\t\\t\\n\\t\\t\\tfor (var c = -1; c <= 7; c++) {\\n\\t\\t\\t\\t\\n\\t\\t\\t\\tif (col + c <= -1 || this.moduleCount <= col + c) continue;\\n\\t\\t\\t\\t\\n\\t\\t\\t\\tif ( (0 <= r && r <= 6 && (c === 0 || c === 6) ) || \\n                     (0 <= c && c <= 6 && (r === 0 || r === 6) ) || \\n                     (2 <= r && r <= 4 && 2 <= c && c <= 4) ) {\\n\\t\\t\\t\\t\\tthis.modules[row + r][col + c] = true;\\n\\t\\t\\t\\t} else {\\n\\t\\t\\t\\t\\tthis.modules[row + r][col + c] = false;\\n\\t\\t\\t\\t}\\n\\t\\t\\t}\\t\\t\\n\\t\\t}\\t\\t\\n\\t},\\n\\t\\n\\tgetBestMaskPattern : function() {\\n\\t\\n\\t\\tvar minLostPoint = 0;\\n\\t\\tvar pattern = 0;\\n\\t\\n\\t\\tfor (var i = 0; i < 8; i++) {\\n\\t\\t\\t\\n\\t\\t\\tthis.makeImpl(true, i);\\n\\t\\n\\t\\t\\tvar lostPoint = QRUtil.getLostPoint(this);\\n\\t\\n\\t\\t\\tif (i === 0 || minLostPoint >  lostPoint) {\\n\\t\\t\\t\\tminLostPoint = lostPoint;\\n\\t\\t\\t\\tpattern = i;\\n\\t\\t\\t}\\n\\t\\t}\\n\\t\\n\\t\\treturn pattern;\\n\\t},\\n\\t\\n\\tcreateMovieClip : function(target_mc, instance_name, depth) {\\n\\t\\n\\t\\tvar qr_mc = target_mc.createEmptyMovieClip(instance_name, depth);\\n\\t\\tvar cs = 1;\\n\\t\\n\\t\\tthis.make();\\n\\n\\t\\tfor (var row = 0; row < this.modules.length; row++) {\\n\\t\\t\\t\\n\\t\\t\\tvar y = row * cs;\\n\\t\\t\\t\\n\\t\\t\\tfor (var col = 0; col < this.modules[row].length; col++) {\\n\\t\\n\\t\\t\\t\\tvar x = col * cs;\\n\\t\\t\\t\\tvar dark = this.modules[row][col];\\n\\t\\t\\t\\n\\t\\t\\t\\tif (dark) {\\n\\t\\t\\t\\t\\tqr_mc.beginFill(0, 100);\\n\\t\\t\\t\\t\\tqr_mc.moveTo(x, y);\\n\\t\\t\\t\\t\\tqr_mc.lineTo(x + cs, y);\\n\\t\\t\\t\\t\\tqr_mc.lineTo(x + cs, y + cs);\\n\\t\\t\\t\\t\\tqr_mc.lineTo(x, y + cs);\\n\\t\\t\\t\\t\\tqr_mc.endFill();\\n\\t\\t\\t\\t}\\n\\t\\t\\t}\\n\\t\\t}\\n\\t\\t\\n\\t\\treturn qr_mc;\\n\\t},\\n\\n\\tsetupTimingPattern : function() {\\n\\t\\t\\n\\t\\tfor (var r = 8; r < this.moduleCount - 8; r++) {\\n\\t\\t\\tif (this.modules[r][6] !== null) {\\n\\t\\t\\t\\tcontinue;\\n\\t\\t\\t}\\n\\t\\t\\tthis.modules[r][6] = (r % 2 === 0);\\n\\t\\t}\\n\\t\\n\\t\\tfor (var c = 8; c < this.moduleCount - 8; c++) {\\n\\t\\t\\tif (this.modules[6][c] !== null) {\\n\\t\\t\\t\\tcontinue;\\n\\t\\t\\t}\\n\\t\\t\\tthis.modules[6][c] = (c % 2 === 0);\\n\\t\\t}\\n\\t},\\n\\t\\n\\tsetupPositionAdjustPattern : function() {\\n\\t\\n\\t\\tvar pos = QRUtil.getPatternPosition(this.typeNumber);\\n\\t\\t\\n\\t\\tfor (var i = 0; i < pos.length; i++) {\\n\\t\\t\\n\\t\\t\\tfor (var j = 0; j < pos.length; j++) {\\n\\t\\t\\t\\n\\t\\t\\t\\tvar row = pos[i];\\n\\t\\t\\t\\tvar col = pos[j];\\n\\t\\t\\t\\t\\n\\t\\t\\t\\tif (this.modules[row][col] !== null) {\\n\\t\\t\\t\\t\\tcontinue;\\n\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\n\\t\\t\\t\\tfor (var r = -2; r <= 2; r++) {\\n\\t\\t\\t\\t\\n\\t\\t\\t\\t\\tfor (var c = -2; c <= 2; c++) {\\n\\t\\t\\t\\t\\t\\n\\t\\t\\t\\t\\t\\tif (Math.abs(r) === 2 || \\n                            Math.abs(c) === 2 ||\\n                            (r === 0 && c === 0) ) {\\n\\t\\t\\t\\t\\t\\t\\tthis.modules[row + r][col + c] = true;\\n\\t\\t\\t\\t\\t\\t} else {\\n\\t\\t\\t\\t\\t\\t\\tthis.modules[row + r][col + c] = false;\\n\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t}\\n\\t\\t\\t}\\n\\t\\t}\\n\\t},\\n\\t\\n\\tsetupTypeNumber : function(test) {\\n\\t\\n\\t\\tvar bits = QRUtil.getBCHTypeNumber(this.typeNumber);\\n        var mod;\\n\\t\\n\\t\\tfor (var i = 0; i < 18; i++) {\\n\\t\\t\\tmod = (!test && ( (bits >> i) & 1) === 1);\\n\\t\\t\\tthis.modules[Math.floor(i / 3)][i % 3 + this.moduleCount - 8 - 3] = mod;\\n\\t\\t}\\n\\t\\n\\t\\tfor (var x = 0; x < 18; x++) {\\n\\t\\t\\tmod = (!test && ( (bits >> x) & 1) === 1);\\n\\t\\t\\tthis.modules[x % 3 + this.moduleCount - 8 - 3][Math.floor(x / 3)] = mod;\\n\\t\\t}\\n\\t},\\n\\t\\n\\tsetupTypeInfo : function(test, maskPattern) {\\n\\t\\n\\t\\tvar data = (this.errorCorrectLevel << 3) | maskPattern;\\n\\t\\tvar bits = QRUtil.getBCHTypeInfo(data);\\n        var mod;\\n\\t\\n\\t\\t// vertical\\t\\t\\n\\t\\tfor (var v = 0; v < 15; v++) {\\n\\t\\n\\t\\t\\tmod = (!test && ( (bits >> v) & 1) === 1);\\n\\t\\n\\t\\t\\tif (v < 6) {\\n\\t\\t\\t\\tthis.modules[v][8] = mod;\\n\\t\\t\\t} else if (v < 8) {\\n\\t\\t\\t\\tthis.modules[v + 1][8] = mod;\\n\\t\\t\\t} else {\\n\\t\\t\\t\\tthis.modules[this.moduleCount - 15 + v][8] = mod;\\n\\t\\t\\t}\\n\\t\\t}\\n\\t\\n\\t\\t// horizontal\\n\\t\\tfor (var h = 0; h < 15; h++) {\\n\\t\\n\\t\\t\\tmod = (!test && ( (bits >> h) & 1) === 1);\\n\\t\\t\\t\\n\\t\\t\\tif (h < 8) {\\n\\t\\t\\t\\tthis.modules[8][this.moduleCount - h - 1] = mod;\\n\\t\\t\\t} else if (h < 9) {\\n\\t\\t\\t\\tthis.modules[8][15 - h - 1 + 1] = mod;\\n\\t\\t\\t} else {\\n\\t\\t\\t\\tthis.modules[8][15 - h - 1] = mod;\\n\\t\\t\\t}\\n\\t\\t}\\n\\t\\n\\t\\t// fixed module\\n\\t\\tthis.modules[this.moduleCount - 8][8] = (!test);\\n\\t\\n\\t},\\n\\t\\n\\tmapData : function(data, maskPattern) {\\n\\t\\t\\n\\t\\tvar inc = -1;\\n\\t\\tvar row = this.moduleCount - 1;\\n\\t\\tvar bitIndex = 7;\\n\\t\\tvar byteIndex = 0;\\n\\t\\t\\n\\t\\tfor (var col = this.moduleCount - 1; col > 0; col -= 2) {\\n\\t\\n\\t\\t\\tif (col === 6) col--;\\n\\t\\n\\t\\t\\twhile (true) {\\n\\t\\n\\t\\t\\t\\tfor (var c = 0; c < 2; c++) {\\n\\t\\t\\t\\t\\t\\n\\t\\t\\t\\t\\tif (this.modules[row][col - c] === null) {\\n\\t\\t\\t\\t\\t\\t\\n\\t\\t\\t\\t\\t\\tvar dark = false;\\n\\t\\n\\t\\t\\t\\t\\t\\tif (byteIndex < data.length) {\\n\\t\\t\\t\\t\\t\\t\\tdark = ( ( (data[byteIndex] >>> bitIndex) & 1) === 1);\\n\\t\\t\\t\\t\\t\\t}\\n\\t\\n\\t\\t\\t\\t\\t\\tvar mask = QRUtil.getMask(maskPattern, row, col - c);\\n\\t\\n\\t\\t\\t\\t\\t\\tif (mask) {\\n\\t\\t\\t\\t\\t\\t\\tdark = !dark;\\n\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t\\t\\n\\t\\t\\t\\t\\t\\tthis.modules[row][col - c] = dark;\\n\\t\\t\\t\\t\\t\\tbitIndex--;\\n\\t\\n\\t\\t\\t\\t\\t\\tif (bitIndex === -1) {\\n\\t\\t\\t\\t\\t\\t\\tbyteIndex++;\\n\\t\\t\\t\\t\\t\\t\\tbitIndex = 7;\\n\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t\\t\\t\\t\\n\\t\\t\\t\\trow += inc;\\n\\t\\n\\t\\t\\t\\tif (row < 0 || this.moduleCount <= row) {\\n\\t\\t\\t\\t\\trow -= inc;\\n\\t\\t\\t\\t\\tinc = -inc;\\n\\t\\t\\t\\t\\tbreak;\\n\\t\\t\\t\\t}\\n\\t\\t\\t}\\n\\t\\t}\\n\\t\\t\\n\\t}\\n\\n};\\n\\nQRCode.PAD0 = 0xEC;\\nQRCode.PAD1 = 0x11;\\n\\nQRCode.createData = function(typeNumber, errorCorrectLevel, dataList) {\\n\\t\\n\\tvar rsBlocks = QRRSBlock.getRSBlocks(typeNumber, errorCorrectLevel);\\n\\t\\n\\tvar buffer = new QRBitBuffer();\\n\\t\\n\\tfor (var i = 0; i < dataList.length; i++) {\\n\\t\\tvar data = dataList[i];\\n\\t\\tbuffer.put(data.mode, 4);\\n\\t\\tbuffer.put(data.getLength(), QRUtil.getLengthInBits(data.mode, typeNumber) );\\n\\t\\tdata.write(buffer);\\n\\t}\\n\\n\\t// calc num max data.\\n\\tvar totalDataCount = 0;\\n\\tfor (var x = 0; x < rsBlocks.length; x++) {\\n\\t\\ttotalDataCount += rsBlocks[x].dataCount;\\n\\t}\\n\\n\\tif (buffer.getLengthInBits() > totalDataCount * 8) {\\n\\t\\tthrow new Error(\\\"code length overflow. (\\\" + \\n            buffer.getLengthInBits() + \\n            \\\">\\\" +  \\n            totalDataCount * 8 + \\n            \\\")\\\");\\n\\t}\\n\\n\\t// end code\\n\\tif (buffer.getLengthInBits() + 4 <= totalDataCount * 8) {\\n\\t\\tbuffer.put(0, 4);\\n\\t}\\n\\n\\t// padding\\n\\twhile (buffer.getLengthInBits() % 8 !== 0) {\\n\\t\\tbuffer.putBit(false);\\n\\t}\\n\\n\\t// padding\\n\\twhile (true) {\\n\\t\\t\\n\\t\\tif (buffer.getLengthInBits() >= totalDataCount * 8) {\\n\\t\\t\\tbreak;\\n\\t\\t}\\n\\t\\tbuffer.put(QRCode.PAD0, 8);\\n\\t\\t\\n\\t\\tif (buffer.getLengthInBits() >= totalDataCount * 8) {\\n\\t\\t\\tbreak;\\n\\t\\t}\\n\\t\\tbuffer.put(QRCode.PAD1, 8);\\n\\t}\\n\\n\\treturn QRCode.createBytes(buffer, rsBlocks);\\n};\\n\\nQRCode.createBytes = function(buffer, rsBlocks) {\\n\\n\\tvar offset = 0;\\n\\t\\n\\tvar maxDcCount = 0;\\n\\tvar maxEcCount = 0;\\n\\t\\n\\tvar dcdata = new Array(rsBlocks.length);\\n\\tvar ecdata = new Array(rsBlocks.length);\\n\\t\\n\\tfor (var r = 0; r < rsBlocks.length; r++) {\\n\\n\\t\\tvar dcCount = rsBlocks[r].dataCount;\\n\\t\\tvar ecCount = rsBlocks[r].totalCount - dcCount;\\n\\n\\t\\tmaxDcCount = Math.max(maxDcCount, dcCount);\\n\\t\\tmaxEcCount = Math.max(maxEcCount, ecCount);\\n\\t\\t\\n\\t\\tdcdata[r] = new Array(dcCount);\\n\\t\\t\\n\\t\\tfor (var i = 0; i < dcdata[r].length; i++) {\\n\\t\\t\\tdcdata[r][i] = 0xff & buffer.buffer[i + offset];\\n\\t\\t}\\n\\t\\toffset += dcCount;\\n\\t\\t\\n\\t\\tvar rsPoly = QRUtil.getErrorCorrectPolynomial(ecCount);\\n\\t\\tvar rawPoly = new QRPolynomial(dcdata[r], rsPoly.getLength() - 1);\\n\\n\\t\\tvar modPoly = rawPoly.mod(rsPoly);\\n\\t\\tecdata[r] = new Array(rsPoly.getLength() - 1);\\n\\t\\tfor (var x = 0; x < ecdata[r].length; x++) {\\n            var modIndex = x + modPoly.getLength() - ecdata[r].length;\\n\\t\\t\\tecdata[r][x] = (modIndex >= 0)? modPoly.get(modIndex) : 0;\\n\\t\\t}\\n\\n\\t}\\n\\t\\n\\tvar totalCodeCount = 0;\\n\\tfor (var y = 0; y < rsBlocks.length; y++) {\\n\\t\\ttotalCodeCount += rsBlocks[y].totalCount;\\n\\t}\\n\\n\\tvar data = new Array(totalCodeCount);\\n\\tvar index = 0;\\n\\n\\tfor (var z = 0; z < maxDcCount; z++) {\\n\\t\\tfor (var s = 0; s < rsBlocks.length; s++) {\\n\\t\\t\\tif (z < dcdata[s].length) {\\n\\t\\t\\t\\tdata[index++] = dcdata[s][z];\\n\\t\\t\\t}\\n\\t\\t}\\n\\t}\\n\\n\\tfor (var xx = 0; xx < maxEcCount; xx++) {\\n\\t\\tfor (var t = 0; t < rsBlocks.length; t++) {\\n\\t\\t\\tif (xx < ecdata[t].length) {\\n\\t\\t\\t\\tdata[index++] = ecdata[t][xx];\\n\\t\\t\\t}\\n\\t\\t}\\n\\t}\\n\\n\\treturn data;\\n\\n};\\n\\nmodule.exports = QRCode;\\n\\n}};\\nconst cache={};function require(n){if(!modules[n])throw Error('Missing QR module '+n);if(!cache[n]){const m={exports:{}};cache[n]=m;modules[n](m,m.exports,require);}return cache[n].exports;}\\nconst Gen=require('./index');\\nfunction QRCode(el,opts){\\n const qr=new Gen(0,opts.correctLevel==null?0:opts.correctLevel);\\n qr.addData(opts.text);qr.make();const n=qr.getModuleCount(),margin=4,count=n+margin*2;\\n const size=Number(opts.width)||278,dpr=2;\\n const canvas=document.createElement('canvas');canvas.width=size*dpr;canvas.height=size*dpr;\\n canvas.style.width=size+'px';canvas.style.height=size+'px';canvas.setAttribute('role','img');canvas.setAttribute('aria-label','Rotating attendance QR code');\\n const ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=false;\\n ctx.fillStyle=opts.colorLight||'#fff';ctx.fillRect(0,0,canvas.width,canvas.height);\\n ctx.fillStyle=opts.colorDark||'#000';const step=canvas.width/count;\\n for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(qr.isDark(y,x)){\\n  const xx=Math.round((x+margin)*step),yy=Math.round((y+margin)*step);\\n  const ww=Math.round((x+margin+1)*step)-xx,hh=Math.round((y+margin+1)*step)-yy;\\n  ctx.fillRect(xx,yy,ww,hh);\\n }\\n el.appendChild(canvas);\\n}\\nQRCode.CorrectLevel={L:1,M:0,Q:3,H:2};window.QRCode=QRCode;\\n})();\\n\\n</script>\\n<script>\\n(()=>{\\nconst cfg=__CONFIG_JSON__, $=id=>document.getElementById(id), base=cfg.endpoint;\\nconst fields={qr:$('qr'),timer:$('timer'),bar:$('bar'),status:$('status'),alert:$('alert')};\\nlet currentKey='',expires=0,serverOffset=0,ended=false,closing=false,lastRound='',pending=false;\\n$('course').textContent=cfg.courseLmsId;$('session').textContent=cfg.sessionId;$('unit').textContent=cfg.unitLabel;\\nfunction build(action){const q=new URLSearchParams({action,course_lms_id:cfg.courseLmsId,session_id:cfg.sessionId});if(cfg.access)q.set('access',cfg.access);return base+'?'+q.toString()}\\nfunction setAlert(msg){fields.alert.textContent=msg||''}\\nfunction renderRoster(list){$('total').textContent=list.length+' student'+(list.length===1?'':'s');$('roster').replaceChildren();if(!list.length){const d=document.createElement('div');d.className='empty';d.textContent='No students have scanned this class QR yet.';$('roster').appendChild(d);return;}for(const stu of list){const li=document.createElement('div');li.className='entry';const ident=document.createElement('div'),name=document.createElement('strong'),desc=document.createElement('small'),present=document.createElement('span');name.textContent=stu.studentName||('Student '+stu.sisId);desc.textContent='SIS '+stu.sisId+' · '+new Date(stu.scannedAt).toLocaleTimeString();present.className='present';present.textContent='Present';ident.append(name,desc);li.append(ident,present);$('roster').appendChild(li);}}\\nfunction showEndState(isEnded,round){ended=Boolean(isEnded);$('state').textContent=ended?'Closed':'Open';$('stateLabel').textContent=ended?'Session closed':'Ready for student scanning';$('end').disabled=ended;$('restart').classList.toggle('hide',!ended);$('round').textContent=round||'1';}\\nasync function update(){if(pending||closing)return;pending=true;try{const r=await fetch(build('token'),{cache:'no-store'});const j=await r.json();if(!r.ok||!j.ok)throw new Error(j.message||'Unable to retrieve token');serverOffset=Date.parse(j.serverTime)-Date.now();showEndState(j.closed,j.roundId);renderRoster(j.attendees||[]);if(j.closed){fields.qr.replaceChildren();const e=document.createElement('div');e.className='loading';e.textContent='Session closed';fields.qr.appendChild(e);expires=0;currentKey='';fields.status.textContent='All check-ins have been saved to the n8n ledger.';return;}const key=j.tokenKey;if(key!==currentKey){currentKey=key;expires=Date.parse(j.expiresAt);fields.qr.replaceChildren();new QRCode(fields.qr,{text:j.qrData,width:278,height:278,colorDark:'#192235',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});fields.status.textContent='Single-use QR · rotates every 5 seconds · refreshed after each check-in';setAlert('');}else{expires=Date.parse(j.expiresAt)}lastRound=j.roundId;\\n}catch(e){fields.status.textContent='Unable to reach n8n: '+e.message;fields.status.className='hint error';}finally{pending=false}}\\nasync function sendAction(action){const data={action,courseLmsId:cfg.courseLmsId,sessionId:cfg.sessionId,roundId:lastRound,access:cfg.access};const r=await fetch(base,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(data),keepalive:true});const j=await r.json();if(!r.ok||!j.ok)throw Error(j.message||'Request failed');return j;}\\n$('end').onclick=async()=>{if(!confirm('End the session and prepare its attendance Excel export?'))return;closing=true;try{const j=await sendAction('end');showEndState(true,j.roundId);setAlert('Session saved. Downloading Excel…');window.open(j.exportUrl||build('export'),'_blank');}catch(e){setAlert(e.message);}finally{closing=false;update();}};\\n$('download').onclick=()=>window.open(build('export'),'_blank');\\n$('restart').onclick=async()=>{if(!confirm('Start a new class round? Previous attendance remains archived in n8n.'))return;try{await sendAction('start');currentKey='';setAlert('New class started.');update();}catch(e){setAlert(e.message)}};\\nfunction bestEffortClose(){if(closing||ended)return;closing=true;const data={action:'end',courseLmsId:cfg.courseLmsId,sessionId:cfg.sessionId,roundId:lastRound,access:cfg.access};try{navigator.sendBeacon(base,new Blob([JSON.stringify(data)],{type:'text/plain'}));}catch(e){/* best effort only */}}\\n/* Browser-close finalization disabled for safer Qwickly use. */document.addEventListener('visibilitychange',()=>{/* switching tabs is not class completion */});\\nsetInterval(()=>{const rem=Math.max(0,expires-(Date.now()+serverOffset));fields.timer.textContent=(rem/1000).toFixed(1)+' seconds remaining';fields.bar.style.width=(Math.min(1,rem/5000)*100)+'%';},100);\\nsetInterval(update,2100);update();\\n})();\\n</script></body></html>\\n\".replace('__CONFIG_JSON__',JSON.stringify(pageConfig).replace(/</g,'\\\\u003c'));\nreturn result(html,200,'html');\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1296,
+        240
+      ],
+      "id": "f6a23ed4-d9e5-4700-ab1a-e9d552f55e92",
+      "name": "07 · QR Validation / Session / Roster / Export"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "6aaadae3-d7e9-45d2-be4a-f35d705ec7d5",
+              "leftValue": "={{ $json.needsWrite }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1024,
+        240
+      ],
+      "id": "4abad697-d14f-4e69-8dad-c8a8dee16fb0",
+      "name": "08 · Save a Data Table Row?"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "value": "FYP_QR_LEDGER",
+          "mode": "name"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "row_key",
+              "keyValue": "={{ $('07 · QR Validation / Session / Roster / Export').first().json.writeRow.row_key }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_key": "={ $('07 · QR Validation / Session / Roster / Export').first().json.writeRow.row_key }",
+            "session_key": "={ $('07 · QR Validation / Session / Roster / Export').first().json.writeRow.session_key }",
+            "kind": "={ $('07 · QR Validation / Session / Roster / Export').first().json.writeRow.kind }",
+            "round_id": "={ $('07 · QR Validation / Session / Roster / Export').first().json.writeRow.round_id }",
+            "sis_id": "={ $('07 · QR Validation / Session / Roster / Export').first().json.writeRow.sis_id }",
+            "student_name": "={ $('07 · QR Validation / Session / Roster / Export').first().json.writeRow.student_name }",
+            "status": "={ $('07 · QR Validation / Session / Roster / Export').first().json.writeRow.status }",
+            "scanned_at": "={ $('07 · QR Validation / Session / Roster / Export').first().json.writeRow.scanned_at }",
+            "token_key": "={ $('07 · QR Validation / Session / Roster / Export').first().json.writeRow.token_key }",
+            "record_json": "={ $('07 · QR Validation / Session / Roster / Export').first().json.writeRow.record_json }",
+            "closed_at": "={ $('07 · QR Validation / Session / Roster / Export').first().json.writeRow.closed_at }"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        80
+      ],
+      "id": "440398b9-baaf-44b5-b564-d70e321be7e4",
+      "name": "09 · POST to Persistent Attendance Table",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:$('07 · QR Validation / Session / Roster / Export').first().json}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        240
+      ],
+      "id": "5bffe18d-1454-4e14-b438-7501c2b0c5bf",
+      "name": "10 · Restore API Response"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "1bce6192-89a1-427d-af77-ed33a55e99f2",
+              "leftValue": "={ $json.kind }",
+              "rightValue": "html",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -288,
+        240
+      ],
+      "id": "15f137ba-8570-4723-bba3-213b0ea455a2",
+      "name": "11 · Lecturer HTML?"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseCode": "={{ $json.httpStatus }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ff7c935e-7e7e-4e7d-9753-1c0216129e6e",
+      "name": "12 · Respond Lecturer QR Page"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "08cc7d75-e800-47a7-9c22-a9b37506d575",
+              "leftValue": "={ $json.kind }",
+              "rightValue": "xlsx",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        352
+      ],
+      "id": "c26ad354-f541-488a-9f1a-dc6ede2f5cfb",
+      "name": "13 · Export XLSX?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const result=$input.first().json;return (result.excelRows||[]).map((r,i)=>({json:r}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        272
+      ],
+      "id": "8582bf86-64f0-4f91-a29d-4707f17faf42",
+      "name": "14 · Build Excel Attendance Rows"
+    },
+    {
+      "parameters": {
+        "operation": "toXlsx"
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        560,
+        272
+      ],
+      "id": "0e178d23-af8c-4b66-b6bc-e6f257ce0adb",
+      "name": "15 · Convert Rows into XLSX"
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              },
+              {
+                "name": "Content-Disposition",
+                "value": "={{ 'attachment; filename=\"' + $('07 · QR Validation / Session / Roster / Export').first().json.payload.filename + '\"' }}"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        832,
+        272
+      ],
+      "id": "24d5b1e7-479a-48ad-b3cc-6a66e4f3981f",
+      "name": "16 · Download Excel Workbook"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "responseCode": "={{ $json.httpStatus }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "X-Content-Type-Options",
+                "value": "nosniff"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        288,
+        512
+      ],
+      "id": "890ad108-8ef6-4989-a945-2dfac36cabe5",
+      "name": "17 · Respond Qwickly-Shaped JSON"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "5f40c76f-9aaf-46b4-93a0-8736cdd1b50e",
+              "leftValue": "={{ $json.needsProxy }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5a1d0000-bb51-4a8c-993d-380f0a73881c",
+      "name": "18 · Is Qwickly POST enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -752,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://graph.microsoft.com/v1.0/me?$select=id,displayName,userPrincipalName,mail",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $('05 · Request Context').first().json.authorization }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "1a9c2335-18ea-45ed-85ea-7dbb053a3c01",
+      "name": "19 · Verify Entra user via Microsoft Graph",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -496,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Graph /me verifies the caller's Microsoft delegated access token.\n// Only a student account matching the QR submission may write to Qwickly.\n// A Microsoft Graph token with delegated User.Read is required (not an ID token).\nconst source=$('07 · QR Validation / Session / Roster / Export').first().json;\nconst graphReply=$input.first().json;\nconst graph=graphReply.body && typeof graphReply.body==='object'?graphReply.body:{};\nconst reject=(status,message,code)=>[{json:{...source,kind:'json',httpStatus:status,needsWrite:false,needsProxy:false,canProxy:false,writeRow:null,payload:{ok:false,success:false,demo:false,recordedInQwickly:false,status:code,message}}}];\nif(Number(graphReply.statusCode)!==200||!graph.id)return reject(401,'Microsoft Graph could not verify the signed-in account. Sign out and sign in again with User.Read permission.','microsoft_auth_failed');\nconst accounts=[graph.userPrincipalName,graph.mail].filter(x=>typeof x==='string').map(x=>x.trim().toLowerCase());\nconst match=accounts.map(x=>/^([0-9]{6,12})@students\\.swinburne\\.edu\\.my$/.exec(x)).find(Boolean);\nif(!match)return reject(403,'A verified Swinburne student account is required.','not_student');\nconst actualSis=match[1];\nif(actualSis!==String(source.writeRow?.sis_id||''))return reject(403,'Signed-in Microsoft student identity does not match the submitted SIS ID.','student_mismatch');\nconst sessionId=String($('05 · Request Context').first().json.sessionKey).split('|')[1];\nconst courseId=String($('05 · Request Context').first().json.sessionKey).split('|')[0];\n// The proxy guide explicitly supports sis_id. Use id only when you have an authorised Qwickly user-ID mapping.\nconst proxyBody={user_identifier:'sis_id',user_value:actualSis,status_id:286,comment:null,make_comment_public:false,location_context:1};\nconst writeRow={...source.writeRow,student_name:String(graph.displayName||('Student '+actualSis)).slice(0,100)};\nreturn [{json:{...source,writeRow,canProxy:true,needsProxy:true,proxyBody,courseId,sessionId}}];"
+      },
+      "id": "5cff4a25-b915-4a1b-a1b3-e9993bec2842",
+      "name": "20 · Verify Student SIS / Prepare Qwickly POST",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -256,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "7bb488d6-84ea-4a4c-878b-edb016a16ed1",
+              "leftValue": "={{ $json.canProxy }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f8d62c7a-b642-446f-9dcd-a7c862095305",
+      "name": "21 · Microsoft Student Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://workflow.swin.click/webhook/qwickly-proxy/course/' + $json.courseId + '/session/' + $json.sessionId + '/record' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.proxyBody) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "7fb50019-ad48-4743-9621-6e5ccd46a305",
+      "name": "22 · POST Official Qwickly Proxy",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        752
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "JC6tpEkXlGN1Ah4W",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Only HTTP 201 from the authorised Qwickly proxy is a newly recorded attendance.\n// This node NEVER marks unconfirmed records as successful.\nconst ctx=$('20 · Verify Student SIS / Prepare Qwickly POST').first().json;\nconst api=$input.first().json;\nconst statusCode=Number(api.statusCode||0);\nconst record=api.body&&typeof api.body==='object'?api.body:{};\nconst fail=(httpStatus,message,status)=>[{json:{kind:'json',httpStatus,needsWrite:false,needsProxy:false,payload:{ok:false,success:false,demo:false,recordedInQwickly:false,status,message,courseCode:'CSS202',sessionId:ctx.sessionId}}}];\nif(statusCode===409)return fail(409,'This student already has a Qwickly attendance record for this class.', 'already_recorded');\nif(statusCode!==201){\n const status=[400,401,403,404,409,429,502,503].includes(statusCode)?statusCode:502;\n return fail(status,'Qwickly did not confirm the attendance POST (proxy HTTP '+String(statusCode||'unknown')+'). Check proxy credentials, session and student mapping.','qwickly_post_failed');\n}\nif(!Number.isSafeInteger(Number(record.id))||!Number.isSafeInteger(Number(record.parent_session))||Number(record.parent_session)!==Number(ctx.sessionId)||Number(record.status_id)!==286){\n return fail(502,'The proxy returned HTTP 201 but the Qwickly record could not be verified. Check Qwickly before retrying.','unverified_qwickly_response');\n}\nconst time=String(record.time_created||new Date().toISOString());\nconst writeRow={...ctx.writeRow,student_name:ctx.writeRow.student_name,status:'PRESENT_QWICKLY',scanned_at:time,record_json:JSON.stringify(record)};\nreturn [{json:{kind:'json',httpStatus:201,needsWrite:true,needsProxy:false,writeRow,payload:{ok:true,success:true,status:'qwickly_recorded',message:'Attendance recorded in Qwickly.',demo:false,recordedInQwickly:true,courseCode:'CSS202',courseLmsId:ctx.courseId,sessionId:ctx.sessionId,sisId:writeRow.sis_id,studentName:writeRow.student_name,scannedAt:time,record}}}];"
+      },
+      "id": "ad4407bb-1ec6-4c9d-8675-6126e523f047",
+      "name": "23 · Verify Qwickly HTTP 201 / Prepare Ledger",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "d1b8da83-b73d-4aab-b94c-270a02a75418",
+              "leftValue": "={{ $json.needsWrite }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "91792342-e9c6-4bfe-a1f8-1212a0574888",
+      "name": "24 · Confirmed Qwickly Record?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "value": "FYP_QR_LEDGER",
+          "mode": "name"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "row_key",
+              "keyValue": "={{ $('23 · Verify Qwickly HTTP 201 / Prepare Ledger').first().json.writeRow.row_key }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_key": "={ $('23 · Verify Qwickly HTTP 201 / Prepare Ledger').first().json.writeRow.row_key }",
+            "session_key": "={ $('23 · Verify Qwickly HTTP 201 / Prepare Ledger').first().json.writeRow.session_key }",
+            "kind": "={ $('23 · Verify Qwickly HTTP 201 / Prepare Ledger').first().json.writeRow.kind }",
+            "round_id": "={ $('23 · Verify Qwickly HTTP 201 / Prepare Ledger').first().json.writeRow.round_id }",
+            "sis_id": "={ $('23 · Verify Qwickly HTTP 201 / Prepare Ledger').first().json.writeRow.sis_id }",
+            "student_name": "={ $('23 · Verify Qwickly HTTP 201 / Prepare Ledger').first().json.writeRow.student_name }",
+            "status": "={ $('23 · Verify Qwickly HTTP 201 / Prepare Ledger').first().json.writeRow.status }",
+            "scanned_at": "={ $('23 · Verify Qwickly HTTP 201 / Prepare Ledger').first().json.writeRow.scanned_at }",
+            "token_key": "={ $('23 · Verify Qwickly HTTP 201 / Prepare Ledger').first().json.writeRow.token_key }",
+            "record_json": "={ $('23 · Verify Qwickly HTTP 201 / Prepare Ledger').first().json.writeRow.record_json }",
+            "closed_at": "={ $('23 · Verify Qwickly HTTP 201 / Prepare Ledger').first().json.writeRow.closed_at }"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        944,
+        704
+      ],
+      "id": "a09eb6ce-3f12-4009-ad64-75f563264e44",
+      "name": "25 · Save Qwickly Confirmed Record",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:$('23 · Verify Qwickly HTTP 201 / Prepare Ledger').first().json}];"
+      },
+      "id": "e8e87db3-d26a-465b-8d9b-bfa458a3b0a9",
+      "name": "26 · Restore Live Attendance Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        704
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "01 · GET Lecturer / Token / Roster / Excel": {
+      "main": [
+        [
+          {
+            "node": "03 · GET Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 · POST Scan / End / Start": {
+      "main": [
+        [
+          {
+            "node": "04 · POST Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 · GET Input": {
+      "main": [
+        [
+          {
+            "node": "05 · Request Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 · POST Input": {
+      "main": [
+        [
+          {
+            "node": "05 · Request Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 · Request Context": {
+      "main": [
+        [
+          {
+            "node": "06 · Read Attendance Ledger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06 · Read Attendance Ledger": {
+      "main": [
+        [
+          {
+            "node": "07 · QR Validation / Session / Roster / Export",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07 · QR Validation / Session / Roster / Export": {
+      "main": [
+        [
+          {
+            "node": "08 · Save a Data Table Row?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09 · POST to Persistent Attendance Table": {
+      "main": [
+        [
+          {
+            "node": "10 · Restore API Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10 · Restore API Response": {
+      "main": [
+        [
+          {
+            "node": "11 · Lecturer HTML?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11 · Lecturer HTML?": {
+      "main": [
+        [
+          {
+            "node": "12 · Respond Lecturer QR Page",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "13 · Export XLSX?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "13 · Export XLSX?": {
+      "main": [
+        [
+          {
+            "node": "14 · Build Excel Attendance Rows",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "17 · Respond Qwickly-Shaped JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "14 · Build Excel Attendance Rows": {
+      "main": [
+        [
+          {
+            "node": "15 · Convert Rows into XLSX",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "15 · Convert Rows into XLSX": {
+      "main": [
+        [
+          {
+            "node": "16 · Download Excel Workbook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08 · Save a Data Table Row?": {
+      "main": [
+        [
+          {
+            "node": "18 · Is Qwickly POST enabled?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "10 · Restore API Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "18 · Is Qwickly POST enabled?": {
+      "main": [
+        [
+          {
+            "node": "19 · Verify Entra user via Microsoft Graph",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "09 · POST to Persistent Attendance Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "19 · Verify Entra user via Microsoft Graph": {
+      "main": [
+        [
+          {
+            "node": "20 · Verify Student SIS / Prepare Qwickly POST",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "20 · Verify Student SIS / Prepare Qwickly POST": {
+      "main": [
+        [
+          {
+            "node": "21 · Microsoft Student Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "21 · Microsoft Student Valid?": {
+      "main": [
+        [
+          {
+            "node": "22 · POST Official Qwickly Proxy",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "17 · Respond Qwickly-Shaped JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "22 · POST Official Qwickly Proxy": {
+      "main": [
+        [
+          {
+            "node": "23 · Verify Qwickly HTTP 201 / Prepare Ledger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "23 · Verify Qwickly HTTP 201 / Prepare Ledger": {
+      "main": [
+        [
+          {
+            "node": "24 · Confirmed Qwickly Record?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "24 · Confirmed Qwickly Record?": {
+      "main": [
+        [
+          {
+            "node": "25 · Save Qwickly Confirmed Record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "17 · Respond Qwickly-Shaped JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "25 · Save Qwickly Confirmed Record": {
+      "main": [
+        [
+          {
+            "node": "26 · Restore Live Attendance Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "26 · Restore Live Attendance Response": {
+      "main": [
+        [
+          {
+            "node": "11 · Lecturer HTML?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "62c96395-4ec8-4ee2-82e9-c56fad8fc6ba",
+  "meta": {
+    "instanceId": "aeffc4f217bbb902eb3b90dd47a9269e7c540bc504a3456abd7af7a4a4676388"
+  },
+  "id": "oHvvj6ZrlTtTSfhT",
+  "tags": []
+}

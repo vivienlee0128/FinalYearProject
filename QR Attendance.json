@@ -1,0 +1,897 @@
+{
+  "name": "QR Attendance",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "fyp/qr/lecturer",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        48,
+        752
+      ],
+      "id": "01d45a98-1453-4245-bbac-69c40d09a244",
+      "name": "01 · Lecturer UI · GET",
+      "webhookId": "0e109610-9bec-4918-9fee-8a40b9c9277f"
+    },
+    {
+      "parameters": {
+        "jsCode": "const html=\"<!DOCTYPE html>\\n<html lang=\\\"en\\\"><head><meta charset=\\\"utf-8\\\"><meta name=\\\"viewport\\\" content=\\\"width=device-width,initial-scale=1\\\">\\n<title>FYP · Lecturer QR Attendance</title>\\n<style>\\n:root{font-family:system-ui,-apple-system,Segoe UI,Arial;background:#f6f7fb;color:#171e2c}*{box-sizing:border-box}\\nbody{margin:0}.wrap{max-width:920px;margin:auto;padding:22px}.brand{background:#b8192f;color:#fff;padding:19px 22px;border-radius:0 0 15px 15px}.brand h1{margin:0;font-size:24px}.brand small{opacity:.86}h2{font-size:18px}label{font-size:12px;font-weight:750;display:block;margin-bottom:7px}\\ninput{width:100%;border:1px solid #ccd1da;border-radius:10px;padding:14px;font-size:15px}button{cursor:pointer;border:0;border-radius:10px;padding:13px 15px;font-size:14px;font-weight:750;background:#b8192f;color:#fff}button.secondary{background:#18263e}button:disabled{opacity:.45;cursor:not-allowed}\\n.card{background:white;border:1px solid #e2e5ec;border-radius:13px;padding:22px;margin:16px 0;box-shadow:0 3px 15px #1b27400b}.form{display:grid;grid-template-columns:1fr 1fr;gap:14px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:17px}.msg{font-size:13px;line-height:1.5;color:#485469}.success{color:#077748}.error{color:#b8192f}.qr{min-height:350px;display:flex;align-items:center;justify-content:center;background:#fff;border:2px dashed #cfd4e0;border-radius:15px;padding:18px}.qr img{max-width:100%}.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}.stat{font-size:23px;font-weight:850;color:#b8192f}.hidden{display:none}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;word-break:break-word;font-size:12px}@media(max-width:700px){.form,.split{grid-template-columns:1fr}.brand h1{font-size:20px}}</style></head>\\n<body><div class=\\\"wrap\\\"><header class=\\\"brand\\\"><h1>Smart Academic Attendance · Lecturer QR</h1><small>Course 2244 · Microsoft-authenticated student scan → Qwickly proxy</small></header>\\n<div class=\\\"card\\\"><h2>1 · Lecturer access</h2><div class=\\\"form\\\"><div><label for=\\\"pin\\\">Lecturer PIN (configured in n8n)</label><input id=\\\"pin\\\" type=\\\"password\\\" autocomplete=\\\"off\\\" placeholder=\\\"Enter your private lecturer PIN\\\"/></div><div><label for=\\\"title\\\">Class title</label><input id=\\\"title\\\" maxlength=\\\"200\\\" value=\\\"FYP Attendance - Live Class\\\"/></div></div><div class=\\\"actions\\\"><button id=\\\"start\\\" onclick=\\\"startClass()\\\">Create Qwickly session</button><button class=\\\"secondary\\\" onclick=\\\"resumeClass()\\\">Reconnect to existing session</button><button class=\\\"secondary\\\" onclick=\\\"stopClass()\\\">End class</button></div><p id=\\\"status\\\" class=\\\"msg\\\">Enter PIN, then create a fresh class session. Use a TEST student for the first live POST.</p></div>\\n<div class=\\\"split\\\"><div class=\\\"card\\\"><h2>2 · Scan this QR using the Expo app</h2><div id=\\\"qr\\\" class=\\\"qr\\\"><span class=\\\"msg\\\">Start a Qwickly session to generate a QR.</span></div></div><div class=\\\"card\\\"><h2>Live class status</h2><p class=\\\"msg\\\">Session</p><div id=\\\"session\\\" class=\\\"stat\\\">Not started</div><p class=\\\"msg\\\">QR expires in</p><div id=\\\"countdown\\\" class=\\\"stat\\\">—</div><p class=\\\"msg\\\">QR automatically refreshes. Students must be signed in with their university Microsoft account. Each student gets one attendance record for the session; multiple students may scan the same displayed QR.</p><p id=\\\"debug\\\" class=\\\"mono\\\"></p></div></div></div>\\n<script src=\\\"https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js\\\"></script><script>\\nconst API='https://fyp-workflow.swin.click/webhook/fyp/qr/manage';let active=false,expiresAt=0,previous='',polling=false;\\nconst el=id=>document.getElementById(id);\\nfunction status(msg,bad=false){el('status').textContent=msg;el('status').className='msg '+(bad?'error':'success')}\\nasync function manage(action){const pin=el('pin').value.trim();if(!pin)throw Error('Enter the lecturer PIN first.');const body=new URLSearchParams({lecturerKey:pin,action,title:el('title').value.trim()||'Class Attendance'});let res;try{res=await fetch(API,{method:'POST',body,cache:'no-store'})}catch(e){throw Error('Cannot reach n8n. Verify workflow ACTIVE and CORS settings. '+e.message)}let data;try{data=await res.json()}catch{throw Error('n8n did not return JSON (HTTP '+res.status+').')}if(!res.ok||!data.ok)throw Error(data.message||('HTTP '+res.status));return data;}\\nasync function startClass(){el('start').disabled=true;try{const d=await manage('start');active=true;el('session').textContent='#'+d.sessionId;status('Qwickly session '+d.sessionId+' created. Display QR for students.');await issue()}catch(e){status(e.message,true)}finally{el('start').disabled=false}}\\nasync function resumeClass(){try{active=true;await issue();status('Reconnected. Display the QR for students.')}catch(e){active=false;status(e.message,true)}}\\nasync function stopClass(){try{let d=await manage('stop');active=false;expiresAt=0;previous='';el('qr').innerHTML='<span class=\\\"msg\\\">Class ended.</span>';el('session').textContent='Closed';el('countdown').textContent='—';status(d.message||'Class closed.')}catch(e){status(e.message,true)}}\\nasync function issue(){if(!active||polling)return;polling=true;try{let d=await manage('issue');if(!d.qrData)throw Error('n8n did not return a QR payload.');expiresAt=d.expiresAt;el('session').textContent='#'+d.sessionId;el('debug').textContent='Course 2244 · QR format FYP_ATTENDANCE_DEMO v1';if(d.qrData!==previous){previous=d.qrData;el('qr').innerHTML='';if(typeof QRCode==='undefined')throw Error('QR rendering library unavailable. Check CDN access.');new QRCode(el('qr'),{text:d.qrData,width:300,height:300,colorDark:'#141923',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});}}catch(e){status(e.message,true)}finally{polling=false}}\\nsetInterval(()=>{if(!active)return;let secs=Math.max(0,Math.ceil((expiresAt-Date.now())/1000));el('countdown').textContent=secs+' s';if(secs<9)void issue();},1000);\\n</script></body></html>\"; return [{json:{html}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        752
+      ],
+      "id": "94f21d01-64f7-44d1-8de0-4a99ff0a198e",
+      "name": "02 · Build lecturer QR page"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "X-Content-Type-Options",
+                "value": "nosniff"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        496,
+        752
+      ],
+      "id": "41b7eb1f-21bb-4a31-9a35-dc93b675ec74",
+      "name": "03 · Return lecturer HTML"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fyp/qr/manage",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        48,
+        1248
+      ],
+      "id": "22031d06-6d4b-44c1-a68e-d2571ae8d36e",
+      "name": "10 · Manage class · POST",
+      "webhookId": "10013fc0-3a23-4529-8638-79571892b14e"
+    },
+    {
+      "parameters": {
+        "jsCode": "const LECTURER_PIN = 'FYPCSS301';\n\nconst r = $input.first().json || {};\nconst b = (r.body && typeof r.body === 'object') ? r.body : {};\n\nconst action = String(b.action || '').trim().toLowerCase();\nconst supplied = String(b.lecturerKey || '');\n\n// Only block if the PIN is empty or still the template placeholder\nif (!LECTURER_PIN || LECTURER_PIN === 'CHANGE_ME') {\n  return [{\n    json: {\n      allowed: 'no',\n      httpStatus: 503,\n      response: {\n        ok: false,\n        message: 'Configure the lecturer PIN in node 11.'\n      }\n    }\n  }];\n}\n\nif (!supplied || supplied !== LECTURER_PIN) {\n  return [{\n    json: {\n      allowed: 'no',\n      httpStatus: 401,\n      response: {\n        ok: false,\n        message: 'Lecturer PIN incorrect.'\n      }\n    }\n  }];\n}\n\nif (!['start', 'issue', 'stop'].includes(action)) {\n  return [{\n    json: {\n      allowed: 'no',\n      httpStatus: 400,\n      response: {\n        ok: false,\n        message: 'Invalid class management action.'\n      }\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    allowed: 'yes',\n    action,\n    title: String(b.title || 'Class Attendance')\n      .slice(0, 200)\n      .trim() || 'Class Attendance'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        1248
+      ],
+      "id": "f8314761-d5c7-45f9-8d3f-bd5efe7e1810",
+      "name": "11 · SET LECTURER PIN · Authorize"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "77f5099e-6c04-4b1d-b85b-a12c6b7a874a",
+              "leftValue": "={{ $json.allowed }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        496,
+        1248
+      ],
+      "id": "31100367-484a-470c-8884-89544226ec7d",
+      "name": "12 · Lecturer authorized?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f5ff4a44-aa30-4c28-9588-62d6765d35ef",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "start",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        1168
+      ],
+      "id": "a943f98b-2d9c-4bcd-95ee-19502476ca9a",
+      "name": "13 · Start new session?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "21b79fb0-99fe-42e2-a06c-c2d2be238edb",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "issue",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        944,
+        1264
+      ],
+      "id": "34d1329a-6a83-4a0b-9c85-81e674f145a4",
+      "name": "14 · Issue/refresh QR?"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.response }}",
+        "options": {
+          "responseCode": "={{ $json.httpStatus }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "X-Content-Type-Options",
+                "value": "nosniff"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1392,
+        1264
+      ],
+      "id": "0ff82a52-6803-400a-9f25-c3bcdfd165ee",
+      "name": "19 · Return class management result"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://workflow.swin.click/webhook/qwickly-proxy-session/course/2244/session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({title: $('11 · SET LECTURER PIN · Authorize').first().json.title, start_time: new Date().toISOString()}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 20000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        944,
+        976
+      ],
+      "id": "86d09464-84c2-42d4-abe1-4f39d4288dd5",
+      "name": "15 · POST proxy · CREATE SESSION",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "UJ6Ct895BGgSJLUs",
+          "name": "Header Auth account 2"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const r=$input.first().json||{};\nfunction parsed(x){if(x==null)return {};if(typeof x==='string'){try{return JSON.parse(x)}catch{return {raw:x}}}return x}\nconst raw=parsed(r.body??r.data??r);\nconst obj=typeof raw==='object'&&raw?raw:{};\nconst status=Number(r.statusCode??r.status??0);\nconst id=obj.session_id;\nif(status!==201||!/^[0-9]+$/.test(String(id??''))){\n return [{json:{httpStatus:status>=400&&status<600?status:502,response:{ok:false,message:'Qwickly session was not confirmed. Check the proxy key, response and upstream status.',proxyStatus:status,upstreamError:String(obj.error||obj.message||obj.raw||'').slice(0,400)}}}];\n}\nconst s=$getWorkflowStaticData('global');\ns.qrAttendance={sessionId:String(id),courseLmsId:'2244',title:String(obj.title||$('11 · SET LECTURER PIN · Authorize').first().json.title),startedAt:Date.now(),active:true,proof:null,previousProof:null,expiresAt:0,previousValidUntil:0};\nreturn [{json:{httpStatus:201,response:{ok:true,sessionId:String(id),courseLmsId:'2244',message:'Qwickly session created and stored. Lecturer can now issue QR.'}}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1168,
+        976
+      ],
+      "id": "c0909010-53c8-45b0-a31f-7325c5b204e1",
+      "name": "16 · Save confirmed Qwickly session"
+    },
+    {
+      "parameters": {
+        "jsCode": "const s=$getWorkflowStaticData('global');const x=s.qrAttendance;\nif(!x||!x.active)return [{json:{httpStatus:409,response:{ok:false,message:'No active session. Create a new Qwickly session first.'}}}];\nconst now=Date.now();\nif(!x.proof||now>=Number(x.expiresAt||0)){\n  x.previousProof=x.proof||null; x.previousValidUntil=now+8000;\n  // Long random challenge, validated only server-side. QR contains no proxy secret.\n  x.proof=Array.from({length:5},()=>Math.random().toString(36).slice(2).padEnd(10,'0')).join('')+String(now);\n  x.expiresAt=now+45000;\n}\nconst qrData=JSON.stringify({type:'FYP_ATTENDANCE_DEMO',v:1,courseLmsId:'2244',sessionId:String(x.sessionId),proof:x.proof});\nreturn [{json:{httpStatus:200,response:{ok:true,courseLmsId:'2244',sessionId:String(x.sessionId),title:x.title,qrData,expiresAt:x.expiresAt,message:'Active QR'}}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1168,
+        1168
+      ],
+      "id": "e0ea3f71-fdc5-46fa-be6d-03489777b785",
+      "name": "17 · Rotating QR · 45 seconds"
+    },
+    {
+      "parameters": {
+        "jsCode": "const s=$getWorkflowStaticData('global');const x=s.qrAttendance;\nif(x){x.active=false;x.proof=null;x.previousProof=null;x.expiresAt=0;}\nreturn [{json:{httpStatus:200,response:{ok:true,message:'QR scanning disabled for this class. Qwickly records remain intact.',sessionId:x?.sessionId||null}}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1168,
+        1360
+      ],
+      "id": "1544852f-cc92-49b3-8ddc-58f8efb9aaf8",
+      "name": "18 · Close active session · n8n only"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fyp/qr/checkin",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        48,
+        1712
+      ],
+      "id": "95f57cb8-8c32-4b33-a3aa-7dca03ef0ab2",
+      "name": "20 · Student CHECK-IN · POST",
+      "webhookId": "676f2d01-9996-437f-a7a9-12a1a3edcc81"
+    },
+    {
+      "parameters": {
+        "jsCode": "const r=$input.first().json||{};const b=(r.body&&typeof r.body==='object')?r.body:{};\nconst h=r.headers||{};const a=String(h.authorization||h.Authorization||'');\nconst reject=(status,msg)=>[{json:{allowed:'no',httpStatus:status,response:{ok:false,demo:false,recordedInQwickly:false,status:'rejected',message:msg}}}];\nif(!/^Bearer\\s+\\S+$/i.test(a))return reject(401,'Microsoft Graph bearer token missing. Sign in again.');\nif(!/^\\d{6,12}$/.test(String(b.sisId||'')))return reject(400,'Valid signed-in student SIS ID required.');\nif(typeof b.qrData!=='string'||b.qrData.length>4096)return reject(400,'Invalid or oversized QR payload.');\nlet q;try{q=JSON.parse(b.qrData)}catch{return reject(400,'QR must contain valid JSON.');}\nconst s=$getWorkflowStaticData('global');const x=s.qrAttendance;\nif(!x||x.active!==true)return reject(410,'No active class session. Ask lecturer to start one.');\nif(!q||q.type!=='FYP_ATTENDANCE_DEMO'||q.v!==1||q.courseLmsId!=='2244'||String(q.sessionId)!==String(x.sessionId))return reject(400,'QR is not for the active class.');\nconst now=Date.now();const good=(q.proof===x.proof&&now<=Number(x.expiresAt||0))||(q.proof===x.previousProof&&now<=Number(x.previousValidUntil||0));\nif(typeof q.proof!=='string'||!good)return reject(410,'QR expired or invalid. Scan the latest lecturer QR.');\nreturn [{json:{allowed:'yes',accessToken:a.replace(/^Bearer\\s+/i,''),claimedSisId:String(b.sisId),sessionId:String(x.sessionId),courseLmsId:'2244'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        1712
+      ],
+      "id": "413b6370-bb65-43be-9e58-c3bd2cd62d03",
+      "name": "21 · Validate active QR and bearer token"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "680cac10-c8a6-48a9-b725-92ba7d3d289e",
+              "leftValue": "={{ $json.allowed }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        496,
+        1712
+      ],
+      "id": "a526dba8-ad3a-442b-958c-b82fbb22b810",
+      "name": "22 · QR accepted?"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.response }}",
+        "options": {
+          "responseCode": "={{ $json.httpStatus }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "X-Content-Type-Options",
+                "value": "nosniff"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1392,
+        1808
+      ],
+      "id": "63212ab7-4ea0-44f2-b76b-dfa67510030f",
+      "name": "29 · Return rejected attendance"
+    },
+    {
+      "parameters": {
+        "url": "https://graph.microsoft.com/v1.0/me?$select=id,mail,userPrincipalName,displayName",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $('21 · Validate active QR and bearer token').first().json.accessToken }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        720,
+        1632
+      ],
+      "id": "3debf96b-dd9f-4e47-a6c5-ab316c1a5006",
+      "name": "23 · Microsoft Graph · /me",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// IMPORTANT: If the proxy cannot resolve SIS IDs, enter owner-provided Qwickly IDs here.\n// Example: const QWICKLY_USER_ID_BY_SIS = {'YOUR_TEST_SIS_ID':'YOUR_QWICKLY_USER_ID'};\nconst QWICKLY_USER_ID_BY_SIS = {};\nconst r=$input.first().json||{};\nfunction parsed(x){if(typeof x==='string'){try{return JSON.parse(x)}catch{return {raw:x}}}return x||{}}\nconst p=parsed(r.body??r.data??r);const status=Number(r.statusCode??r.status??0);\nconst reject=(code,msg)=>[{json:{allowed:'no',httpStatus:code,response:{ok:false,demo:false,recordedInQwickly:false,status:'identity_rejected',message:msg}}}];\nif(status!==200||typeof p!=='object'||!p)return reject(401,'Microsoft identity could not be verified with Graph /me (HTTP '+status+').');\nconst claim=$('21 · Validate active QR and bearer token').first().json;\nconst addresses=[p.mail,p.userPrincipalName].filter(x=>typeof x==='string').map(x=>x.trim().toLowerCase());\nconst matched=addresses.find(v=>/^\\d{6,12}@students\\.swinburne\\.edu\\.my$/.test(v));\nif(!matched)return reject(403,'Graph user is not a recognized Swinburne student email account.');\nconst verifiedSisId=matched.split('@')[0];\nif(verifiedSisId!==claim.claimedSisId)return reject(403,'Signed-in Microsoft student does not match the requested SIS ID.');\nconst mapped=QWICKLY_USER_ID_BY_SIS[verifiedSisId];\nreturn [{json:{allowed:'yes',sessionId:claim.sessionId,studentSisId:verifiedSisId,user_identifier:mapped?'id':'sis_id',user_value:mapped?String(mapped):verifiedSisId}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        944,
+        1632
+      ],
+      "id": "f44f0b50-39fc-44c6-982d-158facc61d13",
+      "name": "24 · VERIFY MICROSOFT STUDENT · MAP Qwickly ID"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "318da4b8-42bd-4ef7-bfdf-11b4b908177d",
+              "leftValue": "={{ $json.allowed }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1168,
+        1632
+      ],
+      "id": "54f36f71-dcb5-4f10-acea-5d67a0129110",
+      "name": "25 · Student identity verified?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://workflow.swin.click/webhook/qwickly-proxy/course/2244/session/' + $('24 · VERIFY MICROSOFT STUDENT · MAP Qwickly ID').first().json.sessionId + '/record' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({user_identifier: $('24 · VERIFY MICROSOFT STUDENT · MAP Qwickly ID').first().json.user_identifier, user_value: $('24 · VERIFY MICROSOFT STUDENT · MAP Qwickly ID').first().json.user_value, status_id: 286, location_context: 1, make_comment_public: false}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 20000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1392,
+        1584
+      ],
+      "id": "60a8b81f-279f-408d-bfe5-4179131dabfe",
+      "name": "26 · POST proxy · ATTENDANCE",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "UJ6Ct895BGgSJLUs",
+          "name": "Header Auth account 2"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const r=$input.first().json||{};\nfunction parsed(x){if(typeof x==='string'){try{return JSON.parse(x)}catch{return {raw:x}}}return x||{}}\nconst p=parsed(r.body??r.data??r);const code=Number(r.statusCode??r.status??0);\nconst input=$('24 · VERIFY MICROSOFT STUDENT · MAP Qwickly ID').first().json;\nconst rawRecord=(p&&typeof p==='object')?(p.record&&typeof p.record==='object'?p.record:p):{};\nconst rec={id:Number(rawRecord.id),parent_session:Number(rawRecord.parent_session),user_id:Number(rawRecord.user_id),status_id:Number(rawRecord.status_id)};\nconst confirmed=code===201&&Number.isSafeInteger(rec.id)&&rec.id>0&&rec.parent_session===Number(input.sessionId)&&Number.isSafeInteger(rec.user_id)&&rec.user_id>0&&rec.status_id===286;\nif(confirmed){return [{json:{httpStatus:201,response:{ok:true,status:'qwickly_recorded',message:'Attendance recorded successfully in Qwickly.',demo:false,recordedInQwickly:true,courseCode:'2244',sessionId:input.sessionId,record:rec}}}];}\nconst already=code===409;\nconst msg=already?'Attendance already exists in Qwickly for this student and session.':code===404?'Qwickly could not find this session or student. Configure the official Qwickly user ID if SIS ID lookup is unsupported.':code===401||code===403?'Qwickly proxy rejected its credential. Check X-Proxy-Key.':'Qwickly attendance POST was not confirmed.';\nreturn [{json:{httpStatus:code>=400&&code<600?code:502,response:{ok:false,status:already?'already_exists':'qwickly_rejected',message:msg,demo:false,recordedInQwickly:false,courseCode:'2244',sessionId:input.sessionId,proxyStatus:code,upstreamError:String(p.error||p.message||p.raw||'').slice(0,400)}}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1616,
+        1584
+      ],
+      "id": "07465ea8-7c3d-47f4-8158-d522a28581af",
+      "name": "27 · Require genuine 201 record"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.response }}",
+        "options": {
+          "responseCode": "={{ $json.httpStatus }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "X-Content-Type-Options",
+                "value": "nosniff"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1840,
+        1584
+      ],
+      "id": "af318284-1893-4a87-9015-b0f5b339d790",
+      "name": "28 · Return official attendance result"
+    },
+    {
+      "parameters": {
+        "content": "## SETUP — ONE SEPARATE QR WORKFLOW\n1. Node **11**: set LECTURER_PIN.\n2. Nodes **15 and 26**: assign SAME n8n Header Auth credential (name **X-Proxy-Key**, value your private proxy key).\n3. Node **24**: only if SIS IDs fail, map SIS IDs to owner-provided Qwickly user IDs.\n4. **Activate/publish workflow**. Static data is not saved in manual test runs.\n5. Open the lecturer URL, create a session, display QR.\n6. Set app `EXPO_PUBLIC_STUDENT_CHECKIN_API_URL=https://fyp-workflow.swin.click/webhook/fyp/qr/checkin` and rebuild.\n7. App must send Microsoft Graph User.Read bearer token.\n\n**DO NOT** put proxy key in Expo env. Admin workflow is untouched.",
+        "height": 470,
+        "width": 585,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "94b1e2c9-0765-45b1-af86-29a05ad110d3",
+      "name": "Guide · 1. Set PIN, 2. Select credentials, 3. ACTIVATE"
+    },
+    {
+      "parameters": {
+        "content": "## PROXY GUIDE CONTRACT\nCREATE: POST `https://workflow.swin.click/webhook/qwickly-proxy-session/course/2244/session` → expects `201` + `session_id`.\nRECORD: POST `https://workflow.swin.click/webhook/qwickly-proxy/course/2244/session/{sessionId}/record` → expects `201` + record id, parent_session, user_id, status_id 286.\n\n**Never claim success** on 200/400/401/404/409/502. HTTP 409 means already exists.\n\nFor FYP demo only: random QR proof stored with workflow staticData; one active class per workflow; staticData may be unreliable under concurrent scans. Use n8n Data Tables for production-grade session state.",
+        "height": 370,
+        "width": 590,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        720,
+        2736
+      ],
+      "id": "9ab9d79a-3b3b-47de-aba8-a09fc4723001",
+      "name": "Notes · Genuine POST only"
+    },
+    {
+      "parameters": {
+        "content": "PIN CODE\nFYPCSS301\nLink:\nhttps://fyp-workflow.swin.click/webhook/fyp/qr/lecturer"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        208,
+        1040
+      ],
+      "typeVersion": 1,
+      "id": "ed0b0ed5-df93-4056-8815-33ce460a2c1c",
+      "name": "Sticky Note"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "01 · Lecturer UI · GET": {
+      "main": [
+        [
+          {
+            "node": "02 · Build lecturer QR page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 · Build lecturer QR page": {
+      "main": [
+        [
+          {
+            "node": "03 · Return lecturer HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10 · Manage class · POST": {
+      "main": [
+        [
+          {
+            "node": "11 · SET LECTURER PIN · Authorize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11 · SET LECTURER PIN · Authorize": {
+      "main": [
+        [
+          {
+            "node": "12 · Lecturer authorized?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "12 · Lecturer authorized?": {
+      "main": [
+        [
+          {
+            "node": "13 · Start new session?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "19 · Return class management result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "13 · Start new session?": {
+      "main": [
+        [
+          {
+            "node": "15 · POST proxy · CREATE SESSION",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "14 · Issue/refresh QR?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "15 · POST proxy · CREATE SESSION": {
+      "main": [
+        [
+          {
+            "node": "16 · Save confirmed Qwickly session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "16 · Save confirmed Qwickly session": {
+      "main": [
+        [
+          {
+            "node": "19 · Return class management result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "14 · Issue/refresh QR?": {
+      "main": [
+        [
+          {
+            "node": "17 · Rotating QR · 45 seconds",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "18 · Close active session · n8n only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "17 · Rotating QR · 45 seconds": {
+      "main": [
+        [
+          {
+            "node": "19 · Return class management result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "18 · Close active session · n8n only": {
+      "main": [
+        [
+          {
+            "node": "19 · Return class management result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "20 · Student CHECK-IN · POST": {
+      "main": [
+        [
+          {
+            "node": "21 · Validate active QR and bearer token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "21 · Validate active QR and bearer token": {
+      "main": [
+        [
+          {
+            "node": "22 · QR accepted?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "22 · QR accepted?": {
+      "main": [
+        [
+          {
+            "node": "23 · Microsoft Graph · /me",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "29 · Return rejected attendance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "23 · Microsoft Graph · /me": {
+      "main": [
+        [
+          {
+            "node": "24 · VERIFY MICROSOFT STUDENT · MAP Qwickly ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "24 · VERIFY MICROSOFT STUDENT · MAP Qwickly ID": {
+      "main": [
+        [
+          {
+            "node": "25 · Student identity verified?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "25 · Student identity verified?": {
+      "main": [
+        [
+          {
+            "node": "26 · POST proxy · ATTENDANCE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "29 · Return rejected attendance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "26 · POST proxy · ATTENDANCE": {
+      "main": [
+        [
+          {
+            "node": "27 · Require genuine 201 record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "27 · Require genuine 201 record": {
+      "main": [
+        [
+          {
+            "node": "28 · Return official attendance result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "17f0f2d4-4c04-48e6-a5bc-3068ca8f71c1",
+  "meta": {
+    "instanceId": "aeffc4f217bbb902eb3b90dd47a9269e7c540bc504a3456abd7af7a4a4676388"
+  },
+  "id": "7xst4C5Y0m7iAIZ6",
+  "tags": []
+}

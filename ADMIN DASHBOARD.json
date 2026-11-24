@@ -1,0 +1,1084 @@
+{
+  "name": "ADMIN DASHBOARD",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "fyp/admin",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1184,
+        352
+      ],
+      "id": "68e29ca8-1085-4a7c-bede-e67b1f82aa48",
+      "name": "01 · Admin Portal · GET",
+      "webhookId": "766e082f-a409-597f-876e-94534b139469"
+    },
+    {
+      "parameters": {
+        "jsCode": "// All application data is synthetic. One n8n Code node, no external modules.\nconst request = $input.first().json || {};\nconst query = request.query || {};\nconst action = String(query.action || 'ui').toLowerCase();\nconst validId = id => /^\\d{6,12}$/.test(String(id));\nconst esc = x => String(x ?? '').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]));\nconst safeExcel = x => {let s=String(x??'');return /^[\\s\\x00-\\x1f]*[=+\\-@]/.test(s)?\"'\"+s:s;};\nconst pct = x => x === null || x === undefined ? 'N/A' : Number(x).toFixed(2)+'%';\nconst studentProfile = function(requestedId) {\n  \n/**\n * FYP SMART ATTENDANCE SYSTEM\n * 100 EMULATED STUDENT PROFILES\n *\n * n8n Code node: Student Profile Emulation\n * Mode: Run Once for All Items\n *\n * Student IDs: 900000001 - 900000100\n *\n * All generated data is synthetic.\n * No database or Qwickly write operations.\n */\n\nconst req = { query: { sis_id: requestedId } };\n\nconst sisId = String(\n  req.query?.sis_id ??\n  req.query?.sisId ??\n  req.body?.sis_id ??\n  ''\n).trim();\n\n// 1. Validate student ID\nif (!/^\\d{6,12}$/.test(sisId)) {\n  return [{\n    json: {\n      success: false,\n      isSynthetic: true,\n      message: 'Provide a numeric sis_id (6–12 digits).'\n    }\n  }];\n}\n\n// 2. Identify the demonstration student\nconst found = /^900000(\\d{3})$/.exec(sisId);\nlet number = found ? Number(found[1]) : null;\n\n// Keep previously used development IDs working\nif (sisId === '104404156') number = 101;\nif (sisId === '100000001') number = 102;\n\nif (\n  number === null ||\n  number < 1 ||\n  (found && number > 100)\n) {\n  return [{\n    json: {\n      success: false,\n      isSynthetic: true,\n      sisId,\n      message: 'Student not found in the demo dataset.'\n    }\n  }];\n}\n\n// 3. Fictional student names\nconst firstNames = [\n  'Aina', 'Daniel', 'Siti', 'Adam',\n  'Mei Ling', 'Amir', 'Grace', 'Farah',\n  'Jason', 'Nurul', 'Ryan', 'Hana',\n  'Kelvin', 'Nadia', 'David', 'Izzah',\n  'Sarah', 'Hakim', 'Michelle', 'Afiq'\n];\n\nconst lastNames = [\n  'Rahman', 'Tan', 'Lim', 'Abdullah',\n  'Lee', 'Wong', 'Ismail', 'Chong',\n  'Aziz', 'Ong', 'Yusof', 'Ng',\n  'Hassan', 'Goh', 'Ibrahim', 'Chan'\n];\n\n// 4. Demonstration programmes and units\n// Unit names/codes are sample fixtures,\n// not verified university catalogue information.\nconst programmes = [\n  {\n    code: 'BCS',\n    name: 'Bachelor of Computer Science',\n    durationYears: 3,\n    units: [\n      ['COS10022', 'Introduction to Programming'],\n      ['COS20019', 'Cloud Computing Architecture'],\n      ['COS20031', 'Computer Systems'],\n      ['SWE30003', 'Software Engineering Project'],\n      ['COS30045', 'Data Analytics'],\n      ['COS30049', 'Computing Project'],\n      ['ICT10001', 'Information Technology Fundamentals'],\n      ['MAT10001', 'Mathematics for Computing'],\n      ['STA10001', 'Statistics Fundamentals']\n    ]\n  },\n  {\n    code: 'BICT',\n    name: 'Bachelor of Information and Communication Technology',\n    durationYears: 3,\n    units: [\n      ['ICT10001', 'IT Fundamentals'],\n      ['NET10001', 'Network Fundamentals'],\n      ['ICT10002', 'Introduction to Databases'],\n      ['NET20001', 'Routing and Switching'],\n      ['SEC20001', 'Network Security'],\n      ['ICT20003', 'Systems Administration'],\n      ['NET30001', 'Enterprise Networks'],\n      ['ICT30002', 'IT Project'],\n      ['SEC30001', 'Cybersecurity Practice']\n    ]\n  },\n  {\n    code: 'BBUS',\n    name: 'Bachelor of Business',\n    durationYears: 3,\n    units: [\n      ['BUS10001', 'Business Fundamentals'],\n      ['MGT10001', 'Management Principles'],\n      ['ACC10001', 'Financial Accounting'],\n      ['ECO20001', 'Business Economics'],\n      ['MKT20001', 'Marketing Management'],\n      ['BUS20001', 'Business Analytics'],\n      ['FIN30001', 'Corporate Finance'],\n      ['MGT30001', 'Strategic Management'],\n      ['BUS30001', 'Business Project']\n    ]\n  }\n];\n\n// 5. Generate this student's identity\nconst seq = number;\nconst prog = programmes[(seq - 1) % programmes.length];\n\nconst firstName =\n  number === 101 ? 'Fredly Benny' :\n  number === 102 ? 'Test' :\n  firstNames[(seq - 1) % firstNames.length];\n\nconst lastName =\n  number === 101 ? 'Anak Vilen' :\n  number === 102 ? 'Student' :\n  lastNames[(seq * 7 + 3) % lastNames.length];\n\nconst fullName = number <= 100\n  ? `${firstName} ${lastName} (Demo ${String(number).padStart(3, '0')})`\n  : `${firstName} ${lastName}`;\n\n// 6. Emulated international student classification\nconst international =\n  seq % 4 === 0 || seq % 7 === 0;\n\nconst visaReview =\n  international && seq % 5 === 0;\n\nconst visaExpiry = international\n  ? (visaReview ? '2026-12-15' : '2028-06-30')\n  : null;\n\n// 7. Create enrolments for three semesters\n// These IDs match the existing semester emulator.\nconst semesterIds = [\n  '2025-S1',\n  '2025-S2',\n  '2026-S1'\n];\n\nconst enrolments = prog.units.map(\n  ([code, name], idx) => ({\n    unitId: `${sisId}-${code}`,\n    code,\n    name,\n    semester: semesterIds[Math.floor(idx / 3)],\n    enrolmentStatus: 'Enrolled',\n    source: 'DEMO_SYNTHETIC'\n  })\n);\n\n// 8. Build the student profile\nconst student = {\n  studentId: `DEMO-${sisId}`,\n  sisId,\n\n  firstName,\n  lastName,\n  fullName,\n\n  email: number === 101\n    ? '104404156@students.swinburne.edu.my'\n    : `demo.student${String(seq).padStart(3, '0')}@example.invalid`,\n\n  studentType: international\n    ? 'International'\n    : 'Local',\n\n  campus: 'Swinburne Sarawak (Demo)',\n  faculty: 'Demonstration Faculty',\n\n  programme: {\n    code: prog.code,\n    name: prog.name,\n    durationYears: prog.durationYears\n  },\n\n  yearOfStudy: 2,\n  semester: '2026-S1',\n\n  academicStatus:\n    seq % 13 === 0\n      ? 'On leave (Demo)'\n      : 'Active (Demo)',\n\n  enrolments,\n\n  visa: {\n    applicable: international,\n\n    status: international\n      ? (\n          visaReview\n            ? 'Review required (Demo)'\n            : 'Active (Demo)'\n        )\n      : 'Not applicable',\n\n    expiryDate: visaExpiry,\n    reviewRequired: visaReview,\n    isSynthetic: true,\n\n    note:\n      'SIMULATED DATA ONLY. ' +\n      'Not a verified visa or immigration assessment.'\n  },\n\n  isSynthetic: true\n};\n\n// 9. Return the JSON response\nreturn [{\n  json: {\n    success: true,\n    student,\n    isSynthetic: true,\n    source: 'STUDENT_PROFILE_EMULATOR',\n    message:\n      'Synthetic student profile for demonstration only.'\n  }\n}];\n\n};\nfunction semesterData(id){\n  // The original uploaded file includes no complete semester emulator branch.\n  // These numbers are explicitly synthetic and never labelled Qwickly-verified.\n  const last=Number(id.slice(-1))||0;\n  const seeds=[82+(last%11),84+(last%9),88+((last*3)%8)];\n  return [\n    {semesterId:'2025-S1',label:'Semester 1, 2025',intake:'2025',startDate:'2025-02-01',endDate:'2025-06-30',percentage:Math.min(99,seeds[0]),source:'DEMO_SYNTHETIC',calculationMethod:'Deterministic emulator fixture'},\n    {semesterId:'2025-S2',label:'Semester 2, 2025',intake:'2025',startDate:'2025-07-01',endDate:'2025-12-31',percentage:Math.min(99,seeds[1]),source:'DEMO_SYNTHETIC',calculationMethod:'Deterministic emulator fixture'},\n    {semesterId:'2026-S1',label:'Semester 1, 2026',intake:'2026',startDate:'2026-02-01',endDate:'2026-06-30',percentage:Math.min(99,seeds[2]),source:'DEMO_SYNTHETIC',calculationMethod:'Deterministic emulator fixture'}\n  ];\n}\nfunction reportFor(id){\n  if(!validId(id)) throw Error('Enter a numeric SIS ID (6–12 digits).');\n  const result=studentProfile(id)[0].json;\n  if(!result.success || !result.student) throw Error(result.message || 'Student not found in the demo dataset.');\n  const profile=result.student;\n  const semesters=semesterData(id);\n  return {success:true,student:{sisId:id},semesters,source:'DEMO_SYNTHETIC',isSynthetic:true,profile,profileSource:'STUDENT_PROFILE_EMULATOR',unitBreakdown:unitBreakdown(id,profile,semesters)};\n}\nfunction hash(value){let h=2166136261;for(const c of value){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return h>>>0;}\nfunction key(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');}\nfunction unitBreakdown(id, profile, semesters){\n return semesters.map((s,i)=>{\n  const units=[];\n  for(const en of (profile.enrolments||[])){\n   const value=en.semester || '';\n   const match=[s.semesterId,s.label,s.intake].some(v=>key(v)===key(value) || (key(v).length>5 && key(value).includes(key(v))));\n   const fallsBack=!match && i===semesters.length-1 && !semesters.some(x=>[x.semesterId,x.label,x.intake].some(v=>key(v)===key(value)||(key(v).length>5&&key(value).includes(key(v)))));\n   if(!match&&!fallsBack)continue;\n   const code=en.code||en.unitId||'Unknown';\n   const weeks=Array.from({length:12},(_,i)=>{\n      const week=i+1,base=hash(`${id}|${s.semesterId}|${code}|${week}`);\n      const classScore=base%11<9?1:0,labScore=Math.floor(base/13)%11<9?1:0,weekScore=(classScore+labScore)/2;\n      return {week,classStatus:classScore?'Present':'Absent',labStatus:labScore?'Present':'Absent',classScore,labScore,weekScore,weekPercent:weekScore*100,source:'DEMO_WEEKLY_FIXTURE'};\n   });\n   units.push({code,name:en.name||code,semesterId:s.semesterId,semesterLabel:s.label,\n     semesterAssignment:match?'MATCHED_EMULATED_ENROLMENT':'DEMO_CURRENT_ENROLMENT_ASSIGNMENT',\n     percentage:Math.round(weeks.reduce((sum,w)=>sum+w.weekScore,0)/12*10000)/100,weekCount:12,weeks,source:'DEMO_WEEKLY_FIXTURE'});\n  }\n  return {semesterId:s.semesterId,semesterLabel:s.label,semesterPercentage:s.percentage,semesterSource:s.source,units,\n   note:'Unit and weekly data are illustrative fixtures, not Qwickly attendance; semester percentages come from an independent emulated series.'};\n });\n}\nfunction batchFrom(s){\n const ids=Array.from(new Set(String(s||'').split(/[\\s,;]+/).map(s=>s.trim()).filter(Boolean)));\n if(!ids.length||ids.length>25)throw Error('Provide 1–25 SIS IDs.');\n if(ids.some(id=>!validId(id)))throw Error('Every SIS ID must be numeric, 6–12 digits.');\n return ids.map(sisId=>{try{const data=reportFor(sisId);return {sisId,data,unitBreakdown:data.unitBreakdown};}catch(e){return {sisId,error:e.message};}});\n}\nfunction csvFor(d){\n const csv=x=>'\"'+safeExcel(x).replace(/\"/g,'\"\"')+'\"';\n const rows=[['sis_id','student_name','semester','intake','attendance_percentage','attendance_source','profile_source','report_status']];\n for(const s of d.semesters)rows.push([d.profile.sisId,d.profile.fullName,s.label,s.intake,s.percentage??'',s.source,'STUDENT_PROFILE_EMULATOR','DEMONSTRATION_ONLY_NOT_ISSUED']);\n return '\\ufeff'+rows.map(row=>row.map(csv).join(',')).join('\\r\\n')+'\\r\\n';\n}\nfunction workbookRows(results){\n const students=[],semesters=[],units=[],weeks=[],errors=[];\n for(const row of results){if(!row.data){errors.push([row.sisId,row.error||'Unknown error']);continue;}\n const d=row.data;\n students.push([d.profile.sisId,d.profile.fullName,d.profile.email,d.profile.programme.name,d.profile.studentType,d.profile.visa.status,'Emulated Profile']);\n for(const s of d.semesters) semesters.push([d.profile.sisId,d.profile.fullName,s.label,s.intake,s.percentage,s.source,s.calculationMethod,'Semester source and weekly fixtures are independent']);\n for(const sem of d.unitBreakdown)for(const u of sem.units){\n   units.push([d.profile.sisId,d.profile.fullName,sem.semesterLabel,u.code,u.name,u.percentage,u.weekCount,'Demo weekly data',u.semesterAssignment]);\n   for(const w of u.weeks)weeks.push([d.profile.sisId,d.profile.fullName,sem.semesterLabel,u.code,w.week,w.classStatus,w.labStatus,w.classScore,w.labScore,w.weekScore,w.weekPercent,'Demo weekly data']);\n }\n }\n return [\n {name:'Students',headers:['Student ID','Student Name','Email','Programme','Student Type','Visa Status','Data Source'],rows:students},\n {name:'Semesters',headers:['Student ID','Student Name','Semester','Intake','Attendance %','Data Source','Calculation','Note'],rows:semesters},\n {name:'Units',headers:['Student ID','Student Name','Semester','Unit Code','Unit Name','Attendance %','Weeks','Data Source','Semester Mapping'],rows:units},\n {name:'Weekly Checks',headers:['Student ID','Student Name','Semester','Unit Code','Week','Class','Lab','Class Score','Lab Score','Week Score','Week %','Data Source'],rows:weeks},\n {name:'Errors',headers:['Student ID','Error'],rows:errors},\n {name:'Read Me',headers:['Item','Explanation'],rows:[\n ['STATUS','DEMONSTRATION DATA ONLY. NOT AN OFFICIAL ATTENDANCE OR VISA RECORD.'],\n ['Week Rule','Class present + Lab present = 1.0; only one present = 0.5; neither present = 0.0.'],\n ['Week %','Week Score multiplied by 100.'],\n ['Unit Attendance %','Average weekly score over illustrative 12 weeks, multiplied by 100.'],\n ['Semester Attendance %','Retrieved from the embedded deterministic synthetic emulator.'],\n ['Important','Demo unit/week scores are not reconciled to the independent semester percentage.'],\n ['Units','Names from the original student profile emulation, weekly statuses are synthetic fixture values.'],\n ['Missing Results','See Errors sheet. Missing results are never 0% attendance.'],\n ['Security','Do not publish student data without real administrative authentication.']\n ]}];\n}\n\n// Create multi-sheet XLSX without Node dependencies or paid n8n variables.\nconst utf8=s=>Buffer.from(String(s),'utf8');\nfunction crc32(b){let c=0xffffffff;for(let i=0;i<b.length;i++){c^=b[i];for(let j=0;j<8;j++)c=(c&1)?(c>>>1)^0xedb88320:c>>>1;}return (c^0xffffffff)>>>0;}\nfunction makeZip(entries){\n const chunks=[],central=[];let offset=0;\n for(const entry of entries){\n  const fn=utf8(entry.name),value=Buffer.isBuffer(entry.data)?entry.data:utf8(entry.data),crc=crc32(value);\n  const header=Buffer.alloc(30);header.writeUInt32LE(0x04034b50,0);header.writeUInt16LE(20,4);header.writeUInt16LE(0x0800,6);header.writeUInt16LE(0,8);header.writeUInt32LE(crc,14);header.writeUInt32LE(value.length,18);header.writeUInt32LE(value.length,22);header.writeUInt16LE(fn.length,26);\n  chunks.push(header,fn,value);\n  const ch=Buffer.alloc(46);ch.writeUInt32LE(0x02014b50,0);ch.writeUInt16LE(20,4);ch.writeUInt16LE(20,6);ch.writeUInt16LE(0x0800,8);ch.writeUInt32LE(crc,16);ch.writeUInt32LE(value.length,20);ch.writeUInt32LE(value.length,24);ch.writeUInt16LE(fn.length,28);ch.writeUInt32LE(offset,42);central.push(ch,fn);\n  offset+=header.length+fn.length+value.length;\n }\n const center=Buffer.concat(central),end=Buffer.alloc(22);end.writeUInt32LE(0x06054b50,0);end.writeUInt16LE(entries.length,8);end.writeUInt16LE(entries.length,10);end.writeUInt32LE(center.length,12);end.writeUInt32LE(offset,16);\n return Buffer.concat([...chunks,center,end]);\n}\nfunction xml(s){return String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&apos;'}[c])).replace(/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]/g,'');}\nfunction makeXlsx(sheets){\n const entries=[\n {name:'[Content_Types].xml',data:'<?xml version=\"1.0\" encoding=\"UTF-8\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/>'+sheets.map((_,i)=>`<Override PartName=\"/xl/worksheets/sheet${i+1}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>`).join('')+'<Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/><Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/></Types>'},\n {name:'_rels/.rels',data:'<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>'},\n {name:'xl/workbook.xml',data:'<?xml version=\"1.0\" encoding=\"UTF-8\"?><workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheets>'+sheets.map((s,i)=>`<sheet name=\"${xml(s.name)}\" sheetId=\"${i+1}\" r:id=\"rId${i+1}\"/>`).join('')+'</sheets></workbook>'},\n {name:'xl/_rels/workbook.xml.rels',data:'<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">'+sheets.map((_,i)=>`<Relationship Id=\"rId${i+1}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet${i+1}.xml\"/>`).join('')+`<Relationship Id=\"rId${sheets.length+1}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/></Relationships>`},\n {name:'xl/styles.xml',data:'<?xml version=\"1.0\" encoding=\"UTF-8\"?><styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><fonts count=\"2\"><font><sz val=\"11\"/><name val=\"Aptos\"/></font><font><b/><sz val=\"11\"/><color rgb=\"FFFFFFFF\"/><name val=\"Aptos\"/></font></fonts><fills count=\"3\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/></fill><fill><patternFill patternType=\"solid\"><fgColor rgb=\"FFC8102E\"/><bgColor indexed=\"64\"/></patternFill></fill></fills><borders count=\"1\"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs><cellXfs count=\"2\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/><xf numFmtId=\"0\" fontId=\"1\" fillId=\"2\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\"/></cellXfs><cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles></styleSheet>'}\n ];\n for(let si=0;si<sheets.length;si++){\n  const sh=sheets[si],all=[sh.headers,...sh.rows];\n  let t='<?xml version=\"1.0\" encoding=\"UTF-8\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><dimension ref=\"A1:'+(function(n){let s='';while(n){s=String.fromCharCode(65+(n-1)%26)+s;n=Math.floor((n-1)/26);}return s;})(sh.headers.length)+String(all.length)+'\"/><sheetViews><sheetView workbookViewId=\"0\"/></sheetViews><sheetFormatPr defaultRowHeight=\"17\"/><cols>'+sh.headers.map((_,i)=>`<col min=\"${i+1}\" max=\"${i+1}\" width=\"${i<2?24:21}\" customWidth=\"1\"/>`).join('')+'</cols><sheetData>';\n  for(let ri=0;ri<all.length;ri++){\n   t+=`<row r=\"${ri+1}\">`;\n   for(let ci=0;ci<all[ri].length;ci++){\n    const col=(function(n){let s='';while(n){s=String.fromCharCode(65+(n-1)%26)+s;n=Math.floor((n-1)/26);}return s;})(ci+1);\n    const v=all[ri][ci],header=ri===0?' s=\"1\"':'';\n    if(ri>0&&typeof v==='number'&&Number.isFinite(v))t+=`<c r=\"${col}${ri+1}\"${header}><v>${v}</v></c>`;\n    else t+=`<c r=\"${col}${ri+1}\" t=\"inlineStr\"${header}><is><t xml:space=\"preserve\">${xml(safeExcel(v))}</t></is></c>`;\n   }\n   t+='</row>';\n  }\n  t+='</sheetData><autoFilter ref=\"A1:'+ (function(n){let s='';while(n){s=String.fromCharCode(65+(n-1)%26)+s;n=Math.floor((n-1)/26);}return s;})(sh.headers.length)+'1\"/></worksheet>';\n  entries.push({name:`xl/worksheets/sheet${si+1}.xml`,data:t});\n }\n return makeZip(entries);\n}\n\n// Native, dependency-free PDF generator for n8n Cloud Code node.\n// Reproduces the original A4 structure, headings, red/grey tables, amber compliance warning, page footers.\nconst JPG_B64='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BVTuzu/CokRFLQREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBVtD2p3le4KiVbQ9qd5XuCqndnd+FRIiKWgiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICraHtTvK9wVEq2h7U7yvcFVO7O78KiREUtBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQFW0PaneV7gqJVtD2p3le4Kqd2d34VEiIpaCIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgKtoe1O8r3BUSraHtTvK9wVU7s7vwqJERS0EREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAVbQ9qd5XuColW0PaneV7gqp3Z3fhUSIiloIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAq2h7U7yvcFRKtoe1O8r3BVTuzu/C/PSufvovSPwTpXP30XpH4IiYTzydK5++i9I/BOlc/fRekfgiJg55Olc/fRekfgnSufvovSPwREwc8nSufvovSPwTpXP30XpH4IiYOeTpXP30XpH4J0rn76L0j8ERMHPJ0rn76L0j8E6Vz99F6R+CImDnk6Vz99F6R+CdK5++i9I/BETBzydK5++i9I/BOlc/fRekfgiJg55Olc/fRekfgnSufvovSPwREwc8nSufvovSPwTpXP30XpH4IiYOeTpXP30XpH4J0rn76L0j8ERMHPJ0rn76L0j8E6Vz99F6R+CImDnk6Vz99F6R+CdK5++i9I/BETBzydK5++i9I/BOlc/fRekfgiJg55Olc/fRekfgnSufvovSPwREwc8nSufvovSPwTpXP30XpH4IiYOeTpXP30XpH4J0rn76L0j8ERMHPJ0rn76L0j8E6Vz99F6R+CImDnk6Vz99F6R+CraK2TiJ3XR9lznmHgRF2IZ3a55X//Z';\nconst JPG_W=300, JPG_H=598;\nfunction makeReportPdf(d,kind){\n  // Faithful A4 letter presentation. No unverified institutional signature or immigration conclusion.\n  const PW=595.28, PH=841.89, M=67, RIGHT=PW-67, CW=RIGHT-M;\n  const RED=[.77,.05,.16], INK=[.16,.18,.22], MUTE=[.35,.39,.44], WHITE=[1,1,1], PINK=[.97,.92,.93], GREY=[.95,.955,.965], BORDER=[.52,.53,.55];\n  const safe=s=>String(s===undefined||s===null?'N/A':s).normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'').replace(/[\\u2010-\\u2015]/g,'-').replace(/[\\u2018\\u2019]/g,\"'\").replace(/[\\u201c\\u201d]/g,'\"').replace(/[^\\x20-\\x7e]/g,'?');\n  const escpdf=s=>'('+safe(s).replace(/[\\\\()]/g,'\\\\$&')+')';\n  const co=x=>x.join(' ')+' rg', stroke=x=>x.join(' ')+' RG';\n  let pages=[],current=null,y=0;\n  function cmd(v){current.push(v);}\n  function rect(x,by,w,h,fill,border){if(fill)cmd(`${co(fill)} ${x.toFixed(2)} ${by.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re f`);if(border)cmd(`${stroke(border)} .55 w ${x.toFixed(2)} ${by.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re S`);}\n  function line(x1,y1,x2,y2,color=BORDER,width=.7){cmd(`${stroke(color)} ${width} w ${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S`);}\n  function text(str,x,by,size=9,bold=false,color=INK){cmd(`BT /${bold?'F2':'F1'} ${size} Tf ${co(color)} 1 0 0 1 ${x.toFixed(2)} ${by.toFixed(2)} Tm ${escpdf(str)} Tj ET`);}\n  function wr(s,width,sz=8.5){const words=safe(s).split(/\\s+/),out=[];let t='';for(const w of words){if(!w)continue;if((t+' '+w).trim().length*sz*.50>width&&t){out.push(t);t=w;}else t=(t?t+' ':'')+w;}if(t)out.push(t);return out.length?out:[''];}\n  function page(){current=[];pages.push(current);cmd(`q 29 0 0 58 ${RIGHT-40} 735 cm /Im1 Do Q`);line(M-35,575,M-35,64,RED,3); y=705;\n    if(pages.length>1){text('CONTINUED',M,PH-72,9,true,RED);y=PH-105;}}\n  function ensure(h){if(y-h<88){page();}}\n  function space(n){y-=n;}\n  function info(label,value){const chunks=wr(value,RIGHT-(M+175)-4,8.6),h=Math.max(17,chunks.length*13+4);ensure(h+1);text(label,M+19,y,8.8,true);text(':',M+145,y,8.8);let yy=y;for(const chunk of chunks){text(chunk,M+163,yy,8.7);yy-=13;}space(h);}\n  function paragraph(s,opts={}){const rows=wr(s,CW-6,opts.size||8.7),h=rows.length*(opts.line||14)+4;ensure(h+9);for(const l of rows){text(l,M,y,opts.size||8.7,!!opts.bold,opts.color||INK);space(opts.line||14);}space(6);}\n  function heading(s){ensure(35);text(s,M,y,10,true,INK);space(26);}\n  function header(ref,docTitle,fullName){const date=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'Asia/Kuching'}).format(new Date());\n    text('Ref:',M,720,8.6);text(ref,M+34,720,8.6);text('Date:',M,704,8.6);text(date,M+34,704,8.6);\n    text('TO WHOM IT MAY CONCERN',M,667,9.4,true);text('Dear Sir/Madam,',M,641,8.7);\n    text(`${docTitle} FOR ${safe(fullName).toUpperCase()}`,M,618,10,true);line(M,614,Math.min(RIGHT,M+Math.max(280,(`${docTitle} FOR ${safe(fullName)}`).length*5.1)),614,INK,.7);y=594;\n  }\n  function tab(headers,rows,widths,cellHeight=23){const total=widths.reduce((a,b)=>a+b,0);const x0=M+18;\n    const drawHeader=()=>{ensure(34);let x=x0;for(let j=0;j<headers.length;j++){rect(x,y-25,widths[j],26,PINK,BORDER);const l=wr(headers[j],widths[j]-12,8);text(l[0],x+(widths[j]-l[0].length*4.1)/2,y-15,8,true,RED);x+=widths[j];}space(26);};\n    drawHeader();if(!rows.length){paragraph('No attendance records were returned.');return;}\n    for(const row of rows){ensure(cellHeight+9);let x=x0;for(let j=0;j<widths.length;j++){rect(x,y-cellHeight,widths[j],cellHeight,null,BORDER);let val=safe(row[j]??'N/A');if(val.length*4.1>widths[j]-10)val=val.slice(0,Math.max(3,Math.floor((widths[j]-17)/4.1)))+'...';text(val,x+(widths[j]-val.length*4.05)/2,y-15,8);x+=widths[j];}space(cellHeight);}\n    space(19);\n  }\n  const p=d.profile||{};const sem=d.semesters||[];const visa=p.visa||{};const now=new Date();const refPrefix=kind==='academic'?'ATT':kind==='visa'?'VISA':'COMP';\n  page();header(`${refPrefix}/${safe(p.sisId)}/${now.getUTCFullYear()}`,kind==='academic'?'ATTENDANCE REPORT':kind==='visa'?'VISA INFORMATION REPORT':'VISA COMPLIANCE REVIEW',p.fullName||'STUDENT');\n  if(kind==='academic'){\n    paragraph('With reference to the subject above, please find the attendance summary for the student stated below.');\n    space(6);\n    [['Student ID',p.sisId],['Name',p.fullName],['Programme',p.programme?.name],['Faculty',p.faculty],['Email',p.email],['Campus',p.campus],['Year of Study',p.yearOfStudy],['Academic Status',p.academicStatus],['Student Category',p.studentType],['Current Semester',p.semester],['Attendance Period',sem.map(x=>x.label).join(' / ')]].forEach(([a,b])=>info(a,b));\n    space(12);\n    const intakes=['March 2025','September 2025','March 2026'];\n    const classify=n=>n===null||n===undefined?'N/A':n>=80?'Good':n>=40?'Fair':n>0?'Poor':'Nil';\n    tab(['Intake','Overall Attendance','Percentages (%)'],sem.map((s,i)=>[intakes[i]||s.label,classify(s.percentage),pct(s.percentage)]),[167,145,132],23);\n    tab(['Key','Percentages (%)'],[['Good','80 - 100'],['Fair','40 - 79.99'],['Poor','Above 0 - below 40'],['Nil','0']],[116,191],18);\n    paragraph('If there are any further queries, please contact the SE / Registrar Office.');space(9);\n    text('Yours sincerely,',M,y,9);space(29);text('Smart Attendance Administration',M,y,9,true);\n  }else if(kind==='visa'){\n    paragraph('With reference to the subject above, the available student visa details are summarised below for administrative verification.');\n    space(7);\n    [['Student ID',p.sisId],['Name',p.fullName],['Programme',p.programme?.name],['Email',p.email],['Campus',p.campus],['Student Category',p.studentType],['Academic Status',p.academicStatus]].forEach(([a,b])=>info(a,b));\n    space(14);heading('VISA INFORMATION');\n    [['Visa Required',visa.applicable?'Yes':'No'],['Visa Status',visa.status||'Not provided'],['Visa Expiry Date',visa.expiryDate||'Not provided'],['Administrative Review',visa.reviewRequired?'Required':'No review flag recorded']].forEach(([a,b])=>info(a,b));\n    space(14);heading('ATTENDANCE EVIDENCE');\n    tab(['Intake','Attendance','Percentages (%)'],sem.map((s,i)=>[['March 2025','September 2025','March 2026'][i]||s.label, s.percentage===null?'N/A':s.percentage>=80?'Good':s.percentage>=40?'Fair':s.percentage>0?'Poor':'Nil',pct(s.percentage)]),[167,145,132],23);\n    paragraph('This report provides recorded information for SE / Registrar Office review. Visa compliance decisions must be confirmed using the authorised policy and source records.');\n    space(12);text('Yours sincerely,',M,y,9);space(29);text('Smart Attendance Administration',M,y,9,true);\n  }else{\n    paragraph('The following information combines the available student visa profile and attendance evidence for administrative compliance review.');space(8);\n    [['Student ID',p.sisId],['Name',p.fullName],['Programme',p.programme?.name],['Student Category',p.studentType],['Email',p.email],['Visa Status',visa.status||'Not provided'],['Visa Expiry Date',visa.expiryDate||'Not provided'],['Review Flag',visa.reviewRequired?'Required':'Not flagged']].forEach(([a,b])=>info(a,b));\n    space(14);heading('ATTENDANCE LOG SUMMARY');\n    tab(['Attendance Period','Overall Attendance','Percentages (%)'],sem.map(s=>[s.label,s.percentage===null?'N/A':s.percentage>=80?'Good':s.percentage>=40?'Fair':s.percentage>0?'Poor':'Nil',pct(s.percentage)]),[167,145,132],23);\n    heading('COMPLIANCE ASSESSMENT');\n    info('Review Outcome','Pending institutional verification');info('Attendance Source',d.source||'Not provided');info('Student Data Source',d.profileSource||'Not provided');\n    paragraph('Attendance and visa records are presented as evidence only. No legal or university compliance determination is asserted by this generated report.');space(12);\n    if(Array.isArray(d.auditRecords)){\n      heading('SOURCE RECONCILIATION');\n      info('Qwickly Course LMS ID',d.auditMeta?.courseLmsId);\n      info('Qwickly User ID',d.auditMeta?.qwicklyUserId);\n      info('Qwickly Session Count',d.auditMeta?.totalSessions);\n      info('Present / Absent / Excused',`${d.auditMeta?.present ?? 0} / ${d.auditMeta?.absent ?? 0} / ${d.auditMeta?.excused ?? 0}`);\n      info('Records Not Located',d.auditMeta?.noRecord);\n      info('Join / Source',`SIS ID ${p.sisId} / Student Data API + Qwickly`);\n      space(12);\n      heading('APPENDIX: QWICKLY SESSION AUDIT LOG');\n      tab(['Session ID','Session Date','Attendance Status','Record ID'],d.auditRecords.map(r=>[r.sessionId,r.startTime ? String(r.startTime).slice(0,16) : 'N/A',r.status,r.recordId||'-']),[93,134,122,95],21);\n      space(10);\n    }\n    text('Yours sincerely,',M,y,9);space(26);text('Smart Attendance Administration',M,y,9,true);\n  }\n  const isDemo=!!(d.isSynthetic||p.isSynthetic||String(d.source||'').includes('DEMO'));\n  const pageCount=pages.length;pages.forEach((commands,i)=>{current=commands;line(M,63,RIGHT,63,BORDER,.55);text(isDemo?'PRESENTATION SAMPLE | SYNTHETIC DATA - NOT SOURCE-VERIFIED':'SYSTEM-GENERATED | REQUIRES AUTHORISED REVIEW',M,48,7,false,MUTE);text(`Page ${i+1} of ${pageCount}`,RIGHT-46,48,7,false,MUTE);});\n  // Assemble native PDF, keeping the university logo image embedded from the supplied ZIP.\n  const jpeg=Buffer.from(JPG_B64,'base64'),obj=[];const put=(id,body)=>{obj[id]=body;};\n  put(1,'<< /Type /Catalog /Pages 2 0 R >>');put(2,`<< /Type /Pages /Kids [${pages.map((_,i)=>`${6+i*2} 0 R`).join(' ')}] /Count ${pages.length} >>`);\n  put(3,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');put(4,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');\n  put(5,Buffer.concat([utf8(`<< /Type /XObject /Subtype /Image /Width ${JPG_W} /Height ${JPG_H} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\\nstream\\n`),jpeg,utf8('\\nendstream')]));\n  pages.forEach((cmds,i)=>{const pageId=6+i*2,contentId=pageId+1,b=utf8(cmds.join('\\n')+'\\n');put(pageId,`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> /XObject << /Im1 5 0 R >> >> /Contents ${contentId} 0 R >>`);put(contentId,Buffer.concat([utf8(`<< /Length ${b.length} >>\\nstream\\n`),b,utf8('endstream')]));});\n  const parts=[utf8('%PDF-1.4\\n%N8nFYP\\n')],offsets=[0];let off=parts[0].length;\n  for(let id=1;id<obj.length;id++){const body=Buffer.isBuffer(obj[id])?obj[id]:utf8(obj[id]);const seg=Buffer.concat([utf8(`${id} 0 obj\\n`),body,utf8('\\nendobj\\n')]);offsets.push(off);parts.push(seg);off+=seg.length;}\n  let refs=`xref\\n0 ${offsets.length}\\n0000000000 65535 f \\n`;for(let i=1;i<offsets.length;i++)refs+=String(offsets[i]).padStart(10,'0')+' 00000 n \\n';refs+=`trailer\\n<< /Size ${offsets.length} /Root 1 0 R >>\\nstartxref\\n${off}\\n%%EOF\\n`;parts.push(utf8(refs));return Buffer.concat(parts);\n}\n\nfunction previewHtml(d){\n const p=d.profile;\n const fmt=arr=>arr.map(([a,b])=>`<tr><th>${esc(a)}</th><td>${esc(b)}</td></tr>`).join('');\n const r=d.semesters.map(s=>`<tr><td>${esc(s.label)}</td><td>${esc(s.intake)}</td><td>${pct(s.percentage)}</td><td>Synthetic</td></tr>`).join('');\n const tables=`<table><thead><tr><th>Semester</th><th>Intake</th><th>Attendance</th><th>Source</th></tr></thead><tbody>${r}</tbody></table>`;\n return `<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Attendance Report ${esc(p.sisId)}</title><style>@page{size:A4;margin:20mm}body{max-width:790px;margin:35px auto;font:13px/1.6 Arial;color:#202633;padding:30px;border-top:10px solid #bd102f;background:#fff}h1{color:#bc1231;font-size:23px}h2{font-size:15px;text-transform:uppercase;color:#b61030;margin-top:35px}table{border-collapse:collapse;width:100%;margin:15px 0}td,th{border-bottom:1px solid #dce0e8;padding:9px;text-align:left;vertical-align:top}th{background:#f2f4f7;color:#334155}.note{background:#fff7e4;border:1px solid #e9d6a9;padding:15px;margin:20px 0}.actions{margin-bottom:20px}@media print{body{margin:0;padding:0;border-top:10px solid #b9102e}.actions{display:none}}</style></head><body><div class=\"actions\"><button onclick=\"print()\">Print or save as PDF</button></div><h4>SMART ATTENDANCE SYSTEM · SWINBURNE SARAWAK</h4><h1>ACADEMIC ATTENDANCE REPORT</h1><p>DEMONSTRATION ONLY — NOT AN OFFICIAL UNIVERSITY RECORD</p><h2>01 / Student Information</h2><table>${fmt([['Full Name',p.fullName],['Student ID',p.sisId],['Email',p.email],['Programme',p.programme.name],['Campus',p.campus]])}</table><h2>02 / Semester Attendance Summary</h2>${tables}<h2>03 / Enrolled Units</h2><table><tr><th>Code</th><th>Unit</th><th>Semester</th></tr>${p.enrolments.map(u=>`<tr><td>${esc(u.code)}</td><td>${esc(u.name)}</td><td>${esc(u.semester)}</td></tr>`).join('')}</table><div class=\"note\">Source: SYNTHETIC FYP DEMONSTRATION. Not valid for academic certification or immigration assessment.</div><p>FYP PROTOTYPE · RESTRICTED ADMINISTRATIVE USE</p></body></html>`;\n}\nconst FRONTEND=\"<!doctype html><html lang=\\\"en\\\"><head><meta charset=\\\"utf-8\\\"/><meta name=\\\"viewport\\\" content=\\\"width=device-width,initial-scale=1\\\"/><title>Smart Attendance | Admin Portal</title><style>\\n/* Faithfully adapted from app/components/portal.module.css; all namespaced to this document. */\\n.app{--red:#c8102e;--dark:#20232b;--text:#202633;--muted:#667185;--border:#e7e9ef;--bg:#f6f7fa;display:flex;min-height:100vh;background:var(--bg);color:var(--text);font-family:Inter,'Segoe UI',Arial,sans-serif}\\n.app *{box-sizing:border-box}.app a{text-decoration:none;color:inherit}.app button,.app input,.app textarea{font:inherit}.app button{cursor:pointer}\\n.sidebar{width:254px;min-width:254px;background:#20232b;color:#e2e5eb;min-height:100vh;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:29px 16px 19px;z-index:50}\\n.brand{display:flex;align-items:center;gap:11px;padding:0 8px}.brandMark{display:grid;place-items:center;width:42px;height:42px;flex-shrink:0;background:#c8102e;color:white;border-radius:11px;font-size:27px;font-weight:900;font-style:italic;box-shadow:0 4px 19px #c8102e40}.brand b{display:block;letter-spacing:1.8px;font-size:14px}.brand small{display:block;letter-spacing:2px;font-size:9px;color:#abb3bf;margin-top:5px}.divider{height:1px;background:#ffffff1c;margin:26px 9px}.sideCaption{font-size:10px;font-weight:700;color:#84909f;letter-spacing:1.7px;margin:0 13px 15px}.navigation{display:grid;gap:5px}.navLink{display:flex;align-items:center;gap:14px;padding:13px 15px;border-radius:10px;color:#bac1cc!important;font-size:13px;font-weight:650;transition:background .15s,transform .15s}.navLink:hover{background:#ffffff12;transform:translateX(2px)}.navLink.active{background:#c8102e;color:white!important}.navIcon{font-size:21px;width:21px;text-align:center;line-height:1}.sidebarFoot{margin-top:auto}.sideCard{background:linear-gradient(130deg,#383d47,#292d36);border:1px solid #ffffff11;border-radius:12px;padding:16px}.sideCard strong{color:white;font-size:14px}.sideCard p{color:#b9c1cc;font-size:12px;line-height:1.55}.sideCard span{color:#ffc9d3;font-size:10px;font-weight:800;letter-spacing:1px}.signout{border:0;background:none;color:#ccd1db;width:100%;text-align:left;padding:16px;margin-top:7px;font-size:13px}.main{flex:1;min-width:0}.topbar{height:80px;background:white;display:flex;align-items:center;justify-content:space-between;padding:0 38px;border-bottom:1px solid var(--border);gap:16px}.topbarStart{font-size:13px;color:#788397}.topbarStart strong{color:#2d3545}.slash{padding:0 9px;color:#b7c0ca}.topbarEnd{display:flex;gap:16px;align-items:center}.account{text-align:right;font-size:12px;font-weight:700}.account small{display:block;font-size:11px;color:#8b94a1;font-weight:400;margin-top:4px}.avatar{width:39px;height:39px;background:#f5e3e6;color:#b10a28;border-radius:50%;display:grid;place-items:center;font-weight:800}.demoPill{font-size:11px;color:#995b00;font-weight:750;background:#fff4df;padding:8px 12px;border-radius:30px}.content{padding:34px 40px;max-width:1500px;margin:0 auto}.pageHeader{margin-bottom:20px}.eyebrow{color:#be1235;font-size:11px;font-weight:900;letter-spacing:2px;margin-bottom:11px}.pageHeader h1{font-size:clamp(29px,3vw,39px);line-height:1.1;letter-spacing:-1.1px;margin:0 0 11px}.pageHeader h1 span{color:var(--red)}.pageHeader p{margin:0;color:#687388;font-size:14px;max-width:760px;line-height:1.6}.notice{border-radius:11px;background:#fff8e7;border:1px solid #f3dfb1;color:#7c5607;padding:13px 18px;font-size:12px;line-height:1.6;margin-bottom:24px}.footer{margin:35px 0 8px;padding-top:19px;border-top:1px solid #e6e9ef;font-size:11px;color:#8c95a3;display:flex;justify-content:space-between}.backdrop,.mobileNav{display:none}\\n.panel{background:#fff;border:1px solid #ebedf2;border-radius:14px;padding:25px;margin:19px 0;box-shadow:0 3px 20px #1b294005}.panel h2{font-size:19px;letter-spacing:-.3px;margin:0 0 6px}.panel h3{font-size:15px;margin:0 0 12px}.panel p{font-size:13px;color:#697587;line-height:1.6;margin-top:0}.panelHead{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:19px}.muted{color:#788393;font-size:12px}.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.twoCols{display:grid;grid-template-columns:1fr 1fr;gap:18px}.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.kpi{background:white;border:1px solid #edf0f3;border-radius:14px;padding:21px;box-shadow:0 4px 18px #1b294004}.kpi span{display:block;color:#828d9c;font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.8px}.kpi strong{display:block;font-size:28px;letter-spacing:-.8px;margin-top:9px}.kpi small{display:block;color:#8a93a0;font-size:11px;margin-top:8px}.redKpi{border-left:4px solid #c8102e}.inputLabel{display:block;color:#5e697b;font-weight:800;font-size:11px;letter-spacing:.8px;margin:0 0 9px}.textarea,.input{border:1px solid #d7dce6;border-radius:10px;padding:13px 14px;color:#273144;background:white;width:100%;font-size:14px;min-width:200px;outline:none}.textarea{resize:vertical;min-height:86px}.input:focus,.textarea:focus{border-color:#c8102e;box-shadow:0 0 0 3px #c8102e18}.button{border:0;border-radius:10px;background:#c8102e;color:white;font-size:13px;font-weight:800;padding:13px 20px;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none!important}.button:hover{background:#a90d27}.button:disabled{opacity:.55;cursor:wait}.secondaryButton{background:#f0f2f7;color:#2d3748;border:1px solid #e3e7ee}.secondaryButton:hover{background:#e7eaf2}.textLink{color:#b61030!important;font-weight:800;font-size:12px}.error{border:1px solid #f4bec8;background:#fff2f4;color:#9b1d35;padding:13px 15px;border-radius:10px;font-size:13px;margin:12px 0}.success{background:#e9f7f1;color:#236a4c;padding:12px;border-radius:10px;font-size:12px}.tableWrap{overflow-x:auto;border:1px solid #ecedf2;border-radius:11px}.table{width:100%;border-collapse:collapse;min-width:600px}.table th{text-align:left;background:#f6f7fa;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:#697484;font-weight:800;padding:13px 15px;white-space:nowrap;border-bottom:1px solid #e6e9ee}.table td{padding:14px 15px;border-bottom:1px solid #eff1f5;font-size:13px;vertical-align:middle}.table tr:last-child td{border-bottom:0}.table tbody tr:hover{background:#fafbfc}.badge{display:inline-block;padding:6px 10px;border-radius:15px;font-size:11px;font-weight:800;background:#fff1db;color:#875c1c}.greenBadge{background:#e8f6ee;color:#276548}.grayBadge{background:#f0f1f4;color:#657082}.redBadge{background:#ffe8ec;color:#b11532}.clickRow{cursor:pointer}.detailGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.detailField{border:1px solid #f1f2f6;border-radius:10px;padding:14px}.detailField small{display:block;color:#818b98;font-size:11px;margin-bottom:7px}.detailField strong{font-size:13px;overflow-wrap:anywhere}.accordion{border:1px solid #e7eaf1;border-radius:11px;margin:10px 0;background:#fff;overflow:hidden}.accordion>summary{cursor:pointer;padding:17px;display:flex;gap:15px;align-items:center;justify-content:space-between;list-style:none}.accordion>summary::-webkit-details-marker{display:none}.accordion>summary:hover{background:#fbfbfc}.accordion[open]>summary{background:#f8f9fb;border-bottom:1px solid #edf0f3}.accordionInner{padding:16px 18px}.subAccordion{border:1px solid #e8ebf0;border-radius:9px;margin:9px 0}.subAccordion>summary{background:#f9fafc;padding:14px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px}.subAccordion[open]>summary{border-bottom:1px solid #e9ecf2}.formula{padding:14px;background:#f5f7fa;border-radius:10px;border-left:4px solid #c8102e;font-weight:650;font-size:13px;line-height:1.7}.center{text-align:center}.empty{padding:40px 20px;text-align:center;color:#7b8697}.micro{font-size:11px;color:#7b8697}.actions{display:flex;gap:10px;flex-wrap:wrap}.footnote{font-size:11px;color:#87919e;margin:12px 0;line-height:1.6}\\n@media(max-width:1060px){.sidebar{width:220px;min-width:220px}.content{padding:25px}.kpis{grid-template-columns:repeat(2,1fr)}.detailGrid{grid-template-columns:repeat(2,1fr)}}\\n@media(max-width:730px){.sidebar{position:fixed;left:-280px;width:254px;transition:left .2s}.sidebarOpen{left:0}.backdrop{display:block;position:fixed;inset:0;background:#0e15207a;z-index:40;border:0}.mobileNav{display:block;background:transparent;color:#242b36;border:0;font-size:18px;margin-right:9px}.topbar{height:65px;padding:0 16px}.content{padding:20px 15px}.twoCols,.detailGrid{grid-template-columns:1fr}.account,.demoPill{display:none}.footer{display:block}.footer span{display:block;margin-top:6px}.panel{padding:19px}}\\n\\n.navLink{border:0;background:transparent;width:100%;text-align:left;cursor:pointer}.navLink.active{background:#c8102e}.pageLink{cursor:pointer}.message{border:1px solid #e8eaf0;border-radius:11px;background:white;padding:22px;color:#617083}.utility{display:flex;flex-wrap:wrap;gap:9px;align-items:center}.utility .button{font-size:12px;padding:10px 13px}.table .button{padding:8px 10px;font-size:11px}.student-header{display:flex;align-items:center;justify-content:space-between;gap:14px}.prewrap{white-space:pre-wrap}.spinner{display:inline-block;width:15px;height:15px;border:2px solid #fdd;border-top-color:#b10d2e;border-radius:50%;animation:spin .65s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.intro-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.moduleCard{border:1px solid #e7e9ef;border-radius:14px;padding:21px;display:block;background:#fff;cursor:pointer;text-align:left}.moduleCard:hover{border-color:#c8102e;background:#fffafb}.moduleCard h3{color:#c8102e;margin:0 0 10px}.moduleCard p{margin:0;color:#727f8e}.icon-button{border:0;background:transparent;color:#c8102e;font-weight:800;cursor:pointer}.app .brandMark{flex-shrink:0}.app .topbar{min-width:0}.app .content{min-width:0}.download-msg{display:inline-block;font-size:11px;color:#64748b}.preview-overlay{position:fixed;inset:0;background:#0b1228b8;display:grid;place-items:center;z-index:110; padding:18px}.preview-box{background:white;border-radius:15px;width:min(950px,97vw);height:min(850px,94vh);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 75px #0006}.preview-toolbar{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #e7e9ef}.preview-box iframe{width:100%;flex:1;border:0}.preview-toolbar button{border:0;background:#eaeef3;border-radius:8px;padding:9px 14px;cursor:pointer}.print-sheet{max-width:780px;background:white;margin:0 auto;padding:40px;box-shadow:0 4px 18px #0002}.print-sheet h1{color:#b80e2a}.print-sheet table{width:100%;border-collapse:collapse}.print-sheet td,.print-sheet th{padding:9px;border-bottom:1px solid #eee;text-align:left}@media(max-width:790px){.intro-grid{grid-template-columns:1fr}.student-header{display:block}.sidebar{position:fixed;left:-280px}.sidebar.sidebarOpen{left:0}.backdrop{display:block}.mobileNav{display:block}}\\n</style></head><body><div class=\\\"app\\\" id=\\\"app\\\">\\n<aside class=\\\"sidebar\\\" id=\\\"sidebar\\\"><div class=\\\"brand\\\"><span class=\\\"brandMark\\\">S</span><span><b>SWINBURNE</b><small>SARAWAK CAMPUS</small></span></div><div class=\\\"divider\\\"></div><div class=\\\"sideCaption\\\">ADMIN WORKSPACE</div><nav class=\\\"navigation\\\" aria-label=\\\"Main navigation\\\">\\n<button class=\\\"navLink active\\\" data-page=\\\"dashboard\\\"><span class=\\\"navIcon\\\">▦</span>Overview</button>\\n<button class=\\\"navLink\\\" data-page=\\\"students\\\"><span class=\\\"navIcon\\\">⌕</span>Student Search</button>\\n<button class=\\\"navLink\\\" data-page=\\\"attendance\\\"><span class=\\\"navIcon\\\">▤</span>Attendance</button>\\n<button class=\\\"navLink\\\" data-page=\\\"visa\\\"><span class=\\\"navIcon\\\">◇</span>Visa &amp; Compliance</button>\\n<button class=\\\"navLink\\\" data-page=\\\"reports\\\"><span class=\\\"navIcon\\\">⇩</span>Reports &amp; Excel</button>\\n<button class=\\\"navLink\\\" data-page=\\\"settings\\\"><span class=\\\"navIcon\\\">⚙</span>Settings</button></nav>\\n<div class=\\\"sidebarFoot\\\"><div class=\\\"sideCard\\\"><strong>Academic reporting</strong><p>Multi-student review workspace</p><span>● EMULATED DATA</span></div><div class=\\\"micro\\\" style=\\\"color:#b7c0cf;padding:18px 9px\\\">Standalone n8n Edition · Prototype</div></div></aside>\\n<button class=\\\"backdrop\\\" id=\\\"backdrop\\\" style=\\\"display:none\\\" aria-label=\\\"Close navigation\\\"></button>\\n<div class=\\\"main\\\"><header class=\\\"topbar\\\"><div class=\\\"topbarStart\\\"><button class=\\\"mobileNav\\\" id=\\\"menuBtn\\\">☰</button>Administration <span class=\\\"slash\\\">/</span> <strong id=\\\"crumb\\\">Overview</strong></div><div class=\\\"topbarEnd\\\"><span class=\\\"demoPill\\\">● Prototype</span><div class=\\\"account\\\">Administrator<small>n8n standalone — no Entra session</small></div><div class=\\\"avatar\\\">A</div></div></header>\\n<main class=\\\"content\\\"><div class=\\\"pageHeader\\\"><div class=\\\"eyebrow\\\">SMART ACADEMIC ATTENDANCE</div><h1 id=\\\"pageTitle\\\">Overview<span>.</span></h1><p id=\\\"pageSubtitle\\\">Search, review and export demonstration student records.</p></div>\\n<div class=\\\"notice\\\"><strong>Prototype / synthetic information:</strong> This portal contains demonstration records, not verified Qwickly, university or immigration data. <strong>Access control is not configured</strong>; do not publish this endpoint for real student records.</div>\\n<div id=\\\"stage\\\"></div><footer class=\\\"footer\\\">Smart Academic Attendance System <span>Final Year Project · n8n Administrator Portal</span></footer></main></div></div>\\n<script>\\n'use strict';\\nconst BASE=__BASE_URL__;\\nconst initialPage=__INITIAL_PAGE__;\\nconst initialIds=__INITIAL_IDS__;\\nlet page='dashboard', results=[], idsInput=initialIds||'',selected=null,working=false;\\nconst $=id=>document.getElementById(id);\\nconst escapeHtml=s=>String(s??'').replace(/[&<>\\\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\\\"':'&quot;','\\\\'':'&#39;'}[c]));\\nconst score=x=>x==null?'N/A':Number(x).toFixed(2)+'%';\\nfunction endpoint(action,params={}){const u=new URL(BASE);u.searchParams.set('action',action);for(const [k,v]of Object.entries(params))u.searchParams.set(k,String(v));return u.toString();}\\nfunction title(n){return ({dashboard:'Overview',students:'Student Search',student:'Student Profile',attendance:'Attendance',visa:'Visa & Compliance',reports:'Reports & Excel',settings:'Settings'})[n]||'Overview';}\\nfunction subtitle(n){return ({dashboard:'A dedicated workspace for searching students, reviewing attendance, checking visa context and exporting reports.',students:'Batch search student profiles and enrolments by SIS ID.',student:'Detailed emulated profile with attendance units and weekly Class/Lab drill-down.',attendance:'Compare semester attendance across multiple student IDs.',visa:'Review emulated visa information. No immigration status is assessed.',reports:'Create three separate PDF drafts (attendance, visa and compliance), CSV and six-sheet Excel workbooks.',settings:'Data sources, access control and prototype limitations.'})[n];}\\nfunction setPage(n){page=n;document.querySelectorAll('[data-page]').forEach(x=>x.classList.toggle('active',x.dataset.page===n));$('pageTitle').innerHTML=escapeHtml(title(n))+'<span>.</span>';$('crumb').textContent=title(n);$('pageSubtitle').textContent=subtitle(n);$('sidebar').classList.remove('sidebarOpen');$('backdrop').style.display='none';render();}\\nfunction panel(heading,body,detail=''){return `<section class=\\\"panel\\\"><div class=\\\"panelHead\\\"><div><h2>${heading}</h2>${detail?`<p>${detail}</p>`:''}</div></div>${body}</section>`;}\\nfunction stat(label,v,note,red=false){return `<div class=\\\"kpi ${red?'redKpi':''}\\\"><span>${label}</span><strong>${v}</strong><small>${note}</small></div>`;}\\nfunction go(n){selected=null;setPage(n);}\\nfunction overview(){const cards=[['students','Student Search','Search up to 25 numeric SIS IDs, view results and profile details.'],['attendance','Attendance Records','Compare semester results; expand semester, unit and weekly scoring.'],['visa','Visa & Compliance','View synthetic visa details, without issuing any status decisions.'],['reports','Reports & Excel','Export separate PDF reports, CSV and XLSX workbooks.']];return `<div class=\\\"kpis\\\">${stat('Student Search','Batch','Up to 25 SIS IDs per lookup',true)}${stat('Semester → Unit','Drill-down','Expandable details')}${stat('Weekly Rule','0 / 0.5 / 1','Class + Lab example')}${stat('Audit exports','Excel','Six report sheets')}</div>`+panel('Select an administrative function',`<div class=\\\"intro-grid\\\">${cards.map(([p,t,d])=>`<button class=\\\"moduleCard\\\" data-open=\\\"${p}\\\"><h3>${t} →</h3><p>${d}</p></button>`).join('')}</div>`,'Each function has its own workspace, following the original portal navigation.')+panel('How the attendance calculation works',`<p>For an illustrative weekly unit with one Class and one Lab, each session contributes half the week’s possible credit.</p><div class=\\\"formula\\\">Class present + Lab present = 1.0 &nbsp; | &nbsp; Exactly one present = 0.5 &nbsp; | &nbsp; Both absent = 0.0</div><p class=\\\"footnote\\\">Weekly fixtures are synthetic and independent of the semester source.</p>`);}\\nfunction workspace(){const names={students:'Find students',attendance:'Attendance overview',visa:'Visa review',reports:'Report exports'};return `<section class=\\\"panel\\\"><div class=\\\"panelHead\\\"><div><h2>${names[page]}</h2><p>Search multiple students in one request using the built-in synthetic n8n emulator.</p></div><span class=\\\"badge\\\">Up to 25 students</span></div><form id=\\\"batchForm\\\"><label for=\\\"ids\\\" class=\\\"inputLabel\\\">STUDENT SIS IDS (ONE PER LINE OR SEPARATED BY COMMAS)</label><textarea id=\\\"ids\\\" class=\\\"textarea\\\" rows=\\\"3\\\" placeholder=\\\"104404156&#10;900000001&#10;900000002\\\">${escapeHtml(idsInput)}</textarea><div class=\\\"row\\\" style=\\\"margin-top:15px\\\"><button class=\\\"button\\\" type=\\\"submit\\\" id=\\\"searchBtn\\\">⌕ &nbsp; Search Students</button><button type=\\\"button\\\" class=\\\"button secondaryButton\\\" id=\\\"excelBtn\\\">⇩ &nbsp; Export Excel (.xlsx)</button><span class=\\\"muted\\\">Valid demo IDs: 900000001–900000100 and 104404156.</span></div></form><p class=\\\"error\\\" id=\\\"formError\\\" style=\\\"display:none\\\" role=\\\"alert\\\"></p></section><div id=\\\"resultArea\\\">${results.length?resultTable():''}</div>`;}\\nfunction resultTable(){const ok=results.filter(r=>r.data),fail=results.filter(r=>r.error),u=ok.reduce((n,r)=>n+r.data.unitBreakdown.reduce((t,s)=>t+s.units.length,0),0);return `<div class=\\\"kpis\\\">${stat('Requested',results.length,'Unique SIS IDs',true)}${stat('Loaded',ok.length,'Available results')}${stat('Errors',fail.length,'Shown individually')}${stat('Unit Fixtures',u,'Synthetic unit data')}</div>`+panel(page==='visa'?'Student visa review':page==='attendance'?'Semester attendance comparison':page==='reports'?'Available report formats':'Search results',`<div class=\\\"tableWrap\\\"><table class=\\\"table\\\"><thead><tr><th>Student ID</th><th>Student Name</th>${page==='visa'?'<th>Student Type</th><th>Visa Status</th>':page==='attendance'?'<th>Semesters</th><th>Latest Semester %</th>':page==='reports'?'<th>Attendance PDF</th><th>Visa PDF</th><th>Compliance PDF</th>':'<th>Programme</th><th>Semesters</th>'}<th>Action</th></tr></thead><tbody>${results.map(r=>{if(!r.data)return `<tr><td>${escapeHtml(r.sisId)}</td><td colspan=\\\"5\\\" style=\\\"color:#b21534\\\">${escapeHtml(r.error)}</td></tr>`;let d=r.data;return `<tr><td><strong>${escapeHtml(r.sisId)}</strong></td><td>${escapeHtml(d.profile.fullName)}</td>${page==='visa'?`<td>${escapeHtml(d.profile.studentType)}</td><td><span class=\\\"badge\\\">${escapeHtml(d.profile.visa.status)}</span></td>`:page==='attendance'?`<td>${d.semesters.length}</td><td><strong>${score(d.semesters.at(-1)?.percentage)}</strong></td>`:page==='reports'?`<td><button class=\\\"icon-button\\\" data-download=\\\"academic\\\" data-sis=\\\"${r.sisId}\\\">Attendance</button></td><td><button class=\\\"icon-button\\\" data-download=\\\"visa\\\" data-sis=\\\"${r.sisId}\\\">Visa</button></td><td><button class=\\\"icon-button\\\" data-download=\\\"compliance\\\" data-sis=\\\"${r.sisId}\\\">Compliance</button></td>`:`<td>${escapeHtml(d.profile.programme.name)}</td><td>${d.semesters.length}</td>`}<td><button class=\\\"icon-button\\\" data-student=\\\"${r.sisId}\\\">View student →</button></td></tr>`}).join('')}</tbody></table></div><p class=\\\"footnote\\\">Results use independent deterministic synthetic data only.</p>`,'Choose a student to expand their semester, unit and weekly records.');}\\nfunction gridFields(entries){return `<div class=\\\"detailGrid\\\">${entries.map(([k,v])=>`<div class=\\\"detailField\\\"><small>${escapeHtml(k)}</small><strong>${escapeHtml(v??'N/A')}</strong></div>`).join('')}</div>`;}\\nfunction badgePresence(v){return `<span class=\\\"badge ${v==='Present'?'greenBadge':'redBadge'}\\\">${escapeHtml(v)}</span>`;}\\nfunction studentPage(){if(!selected)return panel('No student selected','<p>Select a student using Student Search.</p><button class=\\\"button\\\" data-open=\\\"students\\\">Go to Student Search</button>');const d=selected,p=d.profile;\\n const fields=[['Student ID',p.sisId],['Full name',p.fullName],['Email',p.email],['Programme',p.programme.name],['Programme code',p.programme.code],['Year',p.yearOfStudy],['Faculty',p.faculty],['Campus',p.campus],['Student type',p.studentType],['Academic status',p.academicStatus]];\\n const terms=d.semesters.map((s,i)=>{let breakdown=d.unitBreakdown.find(x=>x.semesterId===s.semesterId);return `<details class=\\\"accordion\\\" ${i===d.semesters.length-1?'open':''}><summary><span><strong>${escapeHtml(s.label)}</strong><div class=\\\"micro\\\">${escapeHtml(s.intake)} · Demo semester result</div></span><span><strong style=\\\"color:#b10e2a\\\">${score(s.percentage)}</strong> &nbsp; ▾</span></summary><div class=\\\"accordionInner\\\"><p class=\\\"footnote\\\">The semester percentage is independent of the illustrative weekly unit fixtures below.</p>${!breakdown?.units?.length?'<div class=\\\"empty\\\">No enrolments mapped to this semester in the emulated data.</div>':breakdown.units.map(u=>`<details class=\\\"subAccordion\\\"><summary><span><strong>${escapeHtml(u.code)}</strong> · ${escapeHtml(u.name)}<div class=\\\"micro\\\">${u.semesterAssignment==='DEMO_CURRENT_ENROLMENT_ASSIGNMENT'?'Demo current enrolment mapping':'Matched emulated enrolment'} · Synthetic unit</div></span><span><strong>${score(u.percentage)}</strong> &nbsp; ▾</span></summary><div style=\\\"padding:14px\\\"><div class=\\\"formula\\\">Class and Lab are each worth 0.5. Both Present = 1.0; one Present = 0.5; both Absent = 0.0.</div><div class=\\\"tableWrap\\\" style=\\\"margin-top:13px\\\"><table class=\\\"table\\\"><thead><tr><th>Week</th><th>Class</th><th>Lab</th><th>Class Score</th><th>Lab Score</th><th>Week Score</th><th>Week %</th></tr></thead><tbody>${u.weeks.map(w=>`<tr><td>${w.week}</td><td>${badgePresence(w.classStatus)}</td><td>${badgePresence(w.labStatus)}</td><td>${w.classScore}</td><td>${w.labScore}</td><td><strong>${w.weekScore.toFixed(1)}</strong></td><td>${w.weekPercent}%</td></tr>`).join('')}</tbody></table></div><p class=\\\"footnote\\\">These 12 weeks are stable synthetic samples, not Qwickly records.</p></div></details>`).join('')}</div></details>`}).join('');\\n return `<div class=\\\"row\\\" style=\\\"margin-bottom:14px\\\"><button class=\\\"icon-button\\\" data-open=\\\"students\\\">← Student Search</button><button class=\\\"icon-button\\\" data-open=\\\"attendance\\\">Attendance view</button><button class=\\\"icon-button\\\" data-open=\\\"visa\\\">Visa view</button><button class=\\\"icon-button\\\" data-open=\\\"reports\\\">Reports</button></div>`+panel(escapeHtml(p.fullName),gridFields(fields),`Student ID ${escapeHtml(p.sisId)} · Emulated student profile`)+panel('Semester attendance',terms,`Expand a semester, then a unit, to see 12 Class/Lab weekly records.`)+panel('Visa & compliance context',gridFields([['Applicable',p.visa.applicable?'Yes':'No'],['Status',p.visa.status],['Expiry date',p.visa.expiryDate||'Not available'],['Review required',p.visa.reviewRequired?'Yes':'No']])+`<p class=\\\"footnote\\\">${escapeHtml(p.visa.note)}</p>`,'Emulated student information only; not a visa or immigration assessment.')+panel('Student exports',`<div class=\\\"utility\\\"><button class=\\\"button\\\" data-download=\\\"academic\\\" data-sis=\\\"${p.sisId}\\\">Academic PDF</button><button class=\\\"button secondaryButton\\\" data-download=\\\"visa\\\" data-sis=\\\"${p.sisId}\\\">Visa PDF</button><button class=\\\"button secondaryButton\\\" data-download=\\\"compliance\\\" data-sis=\\\"${p.sisId}\\\">Compliance PDF</button><button class=\\\"button secondaryButton\\\" data-download=\\\"csv\\\" data-sis=\\\"${p.sisId}\\\">CSV</button><button class=\\\"button secondaryButton\\\" data-preview=\\\"${p.sisId}\\\">Print-ready preview</button></div>`,'All reports are distinct files, not combined.');\\n}\\nfunction settings(){return panel('Integration status',`<div class=\\\"tableWrap\\\"><table class=\\\"table\\\"><thead><tr><th>Component</th><th>Source</th><th>Status</th></tr></thead><tbody>${[\\n['Admin login','NextAuth / Microsoft Entra from Next.js source','Not ported; protect webhook separately'],['Student profile','Original n8n profile emulator','Synthetic'],['Semester attendance','Synthetic deterministic replacement; original branch not supplied','Not Qwickly-verified'],['Unit / week breakdown','Original stable hash + 12 Class/Lab weeks','Synthetic fixtures'],['PDF','Native PDF binary built in n8n Code node','Separate draft PDFs'],['Excel','Native XLSX builder in n8n Code node','Six sheets']].map(([n,s,t])=>`<tr><td>${escapeHtml(n)}</td><td>${escapeHtml(s)}</td><td><span class=\\\"badge\\\">${escapeHtml(t)}</span></td></tr>`).join('')}</tbody></table></div>`)+panel('Deployment and data safety',`<p>Everything in this prototype runs in the imported n8n workflow; there is no Vercel or external PDF conversion service. The browser connects using an absolute webhook URL because n8n Cloud returns sandboxed HTML.</p><div class=\\\"formula\\\">Important: The original Microsoft Entra / NextAuth session is not included in this standalone version. Use only synthetic demo data until a proper administrative authentication layer is added.</div><p class=\\\"footnote\\\">The supplied Qwickly workflow also contains QR check-in experiments. This admin-only rebuild intentionally does not write attendance records.</p>`);}\\nfunction render(){const st=$('stage');st.innerHTML=page==='dashboard'?overview():page==='student'?studentPage():page==='settings'?settings():workspace();bindActions();}\\nfunction formError(msg){const e=$('formError');if(e){e.textContent=msg;e.style.display=msg?'block':'none';}}\\nasync function getJson(url){const res=await fetch(url,{cache:'no-store'});const text=await res.text();let j;try{j=JSON.parse(text)}catch{throw Error('Unexpected API response. Make sure the n8n workflow is active.');}if(!res.ok||j.error)throw Error(j.error||`HTTP ${res.status}`);return j;}\\nasync function lookup(){if(working)return;idsInput=$('ids').value;working=true;$('searchBtn').disabled=true;$('searchBtn').innerHTML='<span class=\\\"spinner\\\"></span> Searching...';formError('');try{const ids=[...new Set(idsInput.split(/[\\\\s,;]+/).map(s=>s.trim()).filter(Boolean))];if(!ids.length||ids.length>25||ids.some(s=>!/^\\\\d{6,12}$/.test(s)))throw Error('Enter 1–25 numeric SIS IDs, each 6–12 digits.');const j=await getJson(endpoint('batch',{ids:ids.join(',')}));results=j.results;$('resultArea').innerHTML=resultTable();bindActions();}catch(e){formError(e.message);}finally{working=false;const b=$('searchBtn');if(b){b.disabled=false;b.textContent='⌕  Search Students';}}}\\nasync function loadStudent(id){$('stage').innerHTML='<div class=\\\"panel\\\"><span class=\\\"spinner\\\"></span> Loading student profile and semester details...</div>';selected=null;setPage('student');$('stage').innerHTML='<div class=\\\"panel\\\">Loading student profile and semesters…</div>';try{selected=await getJson(endpoint('student',{sis_id:id}));render();}catch(e){$('stage').innerHTML=panel('Student unavailable',`<p class=\\\"error\\\">${escapeHtml(e.message)}</p><button data-open=\\\"students\\\" class=\\\"button\\\">Back to search</button>`);bindActions();}}\\nasync function downloadFile(action,params,name){const url=endpoint(action,params);try{const r=await fetch(url,{cache:'no-store'});if(!r.ok){let txt=await r.text();try{txt=JSON.parse(txt).error||txt}catch{}throw Error(txt);}const blob=await r.blob();const a=document.createElement('a');const blobUrl=URL.createObjectURL(blob);a.href=blobUrl;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(blobUrl),3000);}catch(e){alert('Download error: '+e.message+'\\\\nYou can also open the direct report URL in a browser.');}}\\nfunction bindActions(){document.querySelectorAll('[data-open]').forEach(x=>x.onclick=()=>go(x.dataset.open));document.querySelectorAll('[data-student]').forEach(x=>x.onclick=()=>loadStudent(x.dataset.student));document.querySelectorAll('[data-download]').forEach(x=>x.onclick=()=>{const t=x.dataset.download,id=x.dataset.sis;downloadFile(t==='csv'?'csv':'pdf',{sis_id:id,...(t!=='csv'?{type:t}:{})},t==='csv'?`FYP_attendance_${id}.csv`:`FYP_${t}_${id}_DRAFT.pdf`);});document.querySelectorAll('[data-preview]').forEach(x=>x.onclick=()=>{const id=x.dataset.preview;const layer=document.createElement('div');layer.className='preview-overlay';layer.innerHTML='<div class=\\\"preview-box\\\"><div class=\\\"preview-toolbar\\\"><strong>Academic attendance · Print-ready preview</strong><button type=\\\"button\\\" id=\\\"closePreview\\\">Close ✕</button></div><iframe title=\\\"Draft academic preview\\\"></iframe></div>';document.body.appendChild(layer);layer.querySelector('iframe').src=endpoint('preview',{sis_id:id});layer.querySelector('#closePreview').onclick=()=>layer.remove();layer.onclick=e=>{if(e.target===layer)layer.remove();};});const form=$('batchForm');if(form)form.onsubmit=e=>{e.preventDefault();lookup();};const excel=$('excelBtn');if(excel)excel.onclick=()=>{idsInput=$('ids').value;downloadFile('excel',{ids:idsInput},'Smart_Attendance_Admin_Demo.xlsx');};}\\ndocument.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));$('menuBtn').onclick=()=>{$('sidebar').classList.toggle('sidebarOpen');$('backdrop').style.display=$('sidebar').classList.contains('sidebarOpen')?'block':'none'};$('backdrop').onclick=()=>{$('sidebar').classList.remove('sidebarOpen');$('backdrop').style.display='none'};\\nsetPage(['dashboard','students','attendance','visa','reports','settings'].includes(initialPage)?initialPage:'dashboard');\\nif(idsInput&&page!=='dashboard'&&page!=='settings')lookup();\\n</script></body></html>\\n\";\nconst base=String(request.webhookUrl||'https://fyp-workflow.swin.click/webhook/fyp/admin').split('?')[0];\nfunction renderPortal(){return FRONTEND.replace('__BASE_URL__',JSON.stringify(base)).replace('__INITIAL_PAGE__',JSON.stringify(String(query.page||'dashboard'))).replace('__INITIAL_IDS__',JSON.stringify(String(query.ids||'')));}\nfunction html(body,status=200){return [{json:{kind:'html',body,status}}];}\nfunction json(payload,status=200){return [{json:{kind:'json',payload,status}}];}\nfunction file(buffer,mimeType,filename){return [{json:{kind:'file',status:200,mimeType,filename},binary:{file:{data:buffer.toString('base64'),mimeType,fileName:filename,fileExtension:filename.split('.').at(-1)}}}];}\ntry{\n if(action==='ui'||action==='portal'||action==='')return html(renderPortal());\n if(action==='health')return json({ok:true,app:'FYP Smart Attendance n8n standalone',version:'1.0',isSynthetic:true,features:['UI','student','batch','pdf','csv','excel','preview']});\n if(action==='student'||action==='attendance'){const id=String(query.sis_id||query.sisId||'').trim();return json(reportFor(id));}\n if(action==='batch'){const rows=batchFrom(query.ids||'');return json({success:true,results:rows,source:'DEMO_SYNTHETIC',isSynthetic:true});}\n if(action==='pdf'){\n  const id=String(query.sis_id||'').trim();const kind=String(query.type||'academic');\n  if(!['academic','visa','compliance'].includes(kind))throw Error('Report type must be academic, visa or compliance.');\n  const d=reportFor(id);return file(makeReportPdf(d,kind),'application/pdf',`FYP_${kind}_${id}.pdf`);\n }\n if(action==='csv'){const id=String(query.sis_id||'').trim();return file(utf8(csvFor(reportFor(id))),'text/csv; charset=utf-8',`FYP_attendance_${id}.csv`);}\n if(action==='excel'){const ids=String(query.ids||'');return file(makeXlsx(workbookRows(batchFrom(ids))),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Smart_Attendance_Admin_Demo.xlsx');}\n if(action==='preview'){const id=String(query.sis_id||'').trim();return html(previewHtml(reportFor(id)));}\n return json({error:'Unknown endpoint. Use action=ui, health, student, batch, pdf, csv, excel or preview.'},404);\n}catch(e){return json({error:String(e?.message||'Request failed'),isSynthetic:true},400);}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -864,
+        352
+      ],
+      "id": "ebda8b9f-7a8e-443d-80f3-97c8ddbf3ebc",
+      "name": "02 · Route + Synthetic Data + Exports"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "2fd98658-43fb-5dea-bd1c-ba5847d5f3e2",
+              "leftValue": "={{ $json.kind }}",
+              "rightValue": "html",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -544,
+        352
+      ],
+      "id": "042849d6-6851-40be-8790-618a69121dd2",
+      "name": "03 · HTML response?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6bff8434-1ffa-54e4-aa3a-d682e6fb9938",
+              "leftValue": "={{ $json.kind }}",
+              "rightValue": "json",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -256,
+        544
+      ],
+      "id": "305e7e15-82bb-4519-a8b3-e7c6ee9bca81",
+      "name": "04 · JSON response?"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.body }}",
+        "options": {
+          "responseCode": "={{ $json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "X-Content-Type-Options",
+                "value": "nosniff"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -208,
+        144
+      ],
+      "id": "f4b4be63-90f7-41f8-8f3b-5149c4c14eaf",
+      "name": "05 · Respond · Admin UI / Preview"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.payload }}",
+        "options": {
+          "responseCode": "={{ $json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "X-Content-Type-Options",
+                "value": "nosniff"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        80,
+        448
+      ],
+      "id": "56472b5a-b484-480e-8119-501f6c842c90",
+      "name": "06 · Respond · JSON API"
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "responseDataSource": "set",
+        "inputFieldName": "file",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "={{ $json.mimeType }}"
+              },
+              {
+                "name": "Content-Disposition",
+                "value": "={{ \"attachment; filename=\\\"\" + $json.filename + \"\\\"\" }}"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "X-Content-Type-Options",
+                "value": "nosniff"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        80,
+        672
+      ],
+      "id": "22175aba-64e3-4f46-a876-5f5821c0a265",
+      "name": "07 · Respond · PDF / XLSX / CSV"
+    },
+    {
+      "parameters": {
+        "content": "# Smart Academic Attendance · n8n Standalone\n**ONE workflow · ONE GET webhook** · No Vercel, no $vars, no external PDF converter.\nQuery parameter `action=` routes UI, data, PDF, Excel and CSV. All records are **SYNTHETIC**.",
+        "height": 180,
+        "width": 640,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1216,
+        32
+      ],
+      "id": "b8aff0f9-7485-4319-8463-6b6c390c8463",
+      "name": "ADMIN PORTAL · ONE WORKFLOW"
+    },
+    {
+      "parameters": {
+        "content": "## Response types\n- HTML = admin UI and print preview\n- JSON = student, batch, health, errors\n- Binary = academic/compliance **separate PDFs**, six-sheet `.xlsx`, `.csv`\n\n**SECURITY:** NextAuth / Microsoft Entra is not ported. Secure before real student data.",
+        "height": 210,
+        "width": 470,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4dcf066a-8772-4be8-8b68-4185b48fce9c",
+      "name": "RESPONSE ROUTING · NO CROSSOVER"
+    },
+    {
+      "parameters": {
+        "path": "fyp/admin/visa-compliance",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1184,
+        1680
+      ],
+      "id": "f2ec4eaf-3d13-4a64-8e3a-4addb48105bc",
+      "name": "VISA · 01 / VISA COMPLIANCE / GET",
+      "webhookId": "bd01017b-847a-4cd6-b62f-32cc0a57b831",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "JC6tpEkXlGN1Ah4W",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const query=$input.first().json.query||{};\nconst sisId=String(query.sis_id??query.sisId??'').trim();\nconst courseLmsId=String(query.course_lms_id??query.courseLmsId??'').trim();\nif(!/^\\d{6,12}$/.test(sisId))throw new Error('Missing or invalid sis_id (6-12 digits).');\nif(!/^\\d+$/.test(courseLmsId))throw new Error('Missing or invalid course_lms_id.');\n// EDIT CONFIG HERE. No client secrets belong in Code nodes or imported JSON.\nconst studentApiUrl='https://fyp-workflow.swin.click/webhook/student-profile';\nif(studentApiUrl.includes('REPLACE_WITH_'))throw new Error('Configure the real Student Data API URL in node \"02 / Validate + Configure\" first.');\nreturn [{json:{sisId,courseLmsId,studentApiUrl}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -944,
+        1680
+      ],
+      "id": "d54bd13c-3973-4707-aa25-de5927e622b7",
+      "name": "VISA · 02 / Validate + Configure"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('VISA · 02 / Validate + Configure').first().json.studentApiUrl }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "sis_id",
+              "value": "={{ $('VISA · 02 / Validate + Configure').first().json.sisId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -656,
+        1680
+      ],
+      "id": "ad43ee5d-0b45-41e2-8d79-5cbf5455f8dc",
+      "name": "VISA · 03 / Student Data API (visa + identity)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "JC6tpEkXlGN1Ah4W",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://au.qwickly.tools/api/dashboard/v1/user/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "paginationMode": "responseContainsNextURL",
+              "nextURL": "={{ $response.body.next }}",
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ !$response.body.next }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -384,
+        1680
+      ],
+      "id": "1e273f95-09c0-4d79-b3d5-f59ec2bdd3a4",
+      "name": "VISA · 04 / Qwickly Users - all pages",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "mg8w7UaYlWRuMlxc",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg=$('VISA · 02 / Validate + Configure').first().json;\nconst raw=$('VISA · 03 / Student Data API (visa + identity)').first().json;\nconst student=raw.student??raw.data?.student??raw.data??raw;\nif(!student||typeof student!=='object'||Array.isArray(student))throw new Error('Student Data API returned no student object.');\nconst actual=String(student.sis_id??student.sisId??student.studentId??'').trim();\nif(actual!==cfg.sisId)throw new Error('Student Data API SIS ID does not match the requested SIS ID.');\nconst visa=student.visa??student.visaDetails??student.immigration??null;\nif(!visa||typeof visa!=='object')throw new Error('No visa object supplied by Student Data API; compliance report not generated.');\nconst users=$input.all().flatMap(it=>Array.isArray(it.json?.results)?it.json.results:Array.isArray(it.json)?it.json:[]);\nconst q=users.find(u=>String(u.sis_id??u.sisId??'')===cfg.sisId);\nif(!q)throw new Error('No matching Qwickly user found by sis_id.');\nconst fullName=String(student.fullName??student.name??[student.first_name??student.firstName,student.last_name??student.lastName].filter(Boolean).join(' ')??'').trim() || [q.first_name,q.last_name].filter(Boolean).join(' ');\nconst visaApplicable=visa.applicable??visa.is_required??visa.required??String(student.studentType??student.student_type??'').toLowerCase().includes('international');\nreturn [{json:{sisId:cfg.sisId,courseLmsId:cfg.courseLmsId,qwicklyUserId:q.id,profile:{sisId:cfg.sisId,fullName,email:student.email??q.email,programme:{name:student.programme?.name??student.programme_name??student.programme??'Not provided'},studentType:student.studentType??student.student_type??'Not supplied',academicStatus:student.academicStatus??student.academic_status??'Not supplied',campus:student.campus??'Swinburne Sarawak',visa:{applicable:!!visaApplicable,status:visa.status??visa.visa_status??'Not supplied',expiryDate:visa.expiryDate??visa.expiry_date??null,reviewRequired:!!(visa.reviewRequired??visa.review_required??false)},isSynthetic:false}}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -128,
+        1680
+      ],
+      "id": "3db31c81-f03e-48fa-ba97-36df3a11cc6e",
+      "name": "VISA · 05 / Match SIS ID across APIs"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://au.qwickly.tools/api/dashboard/v1/course/lms_id%3A' + $('VISA · 02 / Validate + Configure').first().json.courseLmsId + '/status/' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "paginationMode": "responseContainsNextURL",
+              "nextURL": "={{ $response.body.next }}",
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ !$response.body.next }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        160,
+        1680
+      ],
+      "id": "4942ea83-79e1-4192-8aa8-199e3c550ca0",
+      "name": "VISA · 06 / Qwickly Attendance Statuses",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "mg8w7UaYlWRuMlxc",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://au.qwickly.tools/api/dashboard/v1/course/lms_id%3A' + $('VISA · 02 / Validate + Configure').first().json.courseLmsId + '/session/' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "paginationMode": "responseContainsNextURL",
+              "nextURL": "={{ $response.body.next }}",
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ !$response.body.next }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        432,
+        1680
+      ],
+      "id": "b6cce109-7eed-4989-a75a-8d0a6e396af6",
+      "name": "VISA · 07 / Qwickly Sessions - all pages",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "mg8w7UaYlWRuMlxc",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw=$input.all().flatMap(it=>Array.isArray(it.json?.results)?it.json.results:Array.isArray(it.json)?it.json:[]);\nif(!raw.length)throw new Error('Qwickly returned no course sessions. No report generated.');\nconst found=new Set();const out=[];\nfor(const s of raw){if(s.id===undefined||s.id===null)continue;const id=String(s.id);if(found.has(id))continue;found.add(id);out.push({json:{sessionId:id,title:s.title??'',startTime:s.start_time??null,method:s.method??null}});}\nif(!out.length)throw new Error('Qwickly session results lack session IDs.');return out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        1680
+      ],
+      "id": "39e637dc-2848-4bea-a40a-90c6d65bfe6a",
+      "name": "VISA · 08 / Flatten Qwickly Sessions"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://au.qwickly.tools/api/dashboard/v1/course/lms_id%3A' + $('VISA · 02 / Validate + Configure').first().json.courseLmsId + '/session/' + $json.sessionId + '/record/' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "paginationMode": "responseContainsNextURL",
+              "nextURL": "={{ $response.body.next }}",
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ !$response.body.next }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        960,
+        1680
+      ],
+      "id": "8a9322b2-66d5-45b6-b824-94d3e206d731",
+      "name": "VISA · 09 / Qwickly Session Records - all pages",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "mg8w7UaYlWRuMlxc",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg=$('VISA · 02 / Validate + Configure').first().json;\nconst src=$('VISA · 05 / Match SIS ID across APIs').first().json;\nconst sess=$('VISA · 08 / Flatten Qwickly Sessions').all().map(x=>x.json);\nconst statusPages=$('VISA · 06 / Qwickly Attendance Statuses').all();\nconst statuses=statusPages.flatMap(i=>Array.isArray(i.json?.results)?i.json.results:Array.isArray(i.json)?i.json:[]);\nconst statusName=(id)=>statuses.find(x=>String(x.id)===String(id))?.name??'Unknown';\nconst userId=String(src.qwicklyUserId);\nconst data=$input.all();\nconst recordsBySession=new Map();\nfor(let i=0;i<data.length;i++){\n  const it=data[i];const p=it.pairedItem;const idx=Array.isArray(p)?p[0]?.item:p?.item;\n  if(!Number.isInteger(idx)||!sess[idx])throw new Error('Session to record mapping is missing. Check HTTP Request item pairing; cannot create audit report without reliable matching.');\n  const sid=String(sess[idx].sessionId);const recs=Array.isArray(it.json?.results)?it.json.results:Array.isArray(it.json)?it.json:[];\n  if(!recordsBySession.has(sid))recordsBySession.set(sid,[]);recordsBySession.get(sid).push(...recs);\n}\nlet present=0,absent=0,excused=0,noRecord=0;\nconst group=new Map();const auditRecords=[];\nfor(const s of sess){\n const matches=(recordsBySession.get(String(s.sessionId))||[]).filter(r=>String(r.user_id??r.user?.id??'')===userId);\n if(matches.length>1)throw new Error('Multiple attendance records for student '+cfg.sisId+' in session '+s.sessionId+'; manual reconciliation required.');\n const r=matches[0];const status=r?(statusName(r.status_id)??'Unknown'):'No Record';\n if(status.toLowerCase()==='present')present++;else if(status.toLowerCase()==='absent')absent++;else if(status.toLowerCase()==='excused')excused++;else if(!r)noRecord++;\n const dt=s.startTime?new Date(s.startTime):null;const validDate=dt&&!Number.isNaN(dt.getTime());\n const label=validDate?`${dt.getUTCMonth()<6?'March':'September'} ${dt.getUTCFullYear()}`:'Unknown Period';\n if(!group.has(label))group.set(label,{present:0,absent:0});\n const g=group.get(label);if(status.toLowerCase()==='present')g.present++;else if(status.toLowerCase()==='absent')g.absent++;\n auditRecords.push({sessionId:s.sessionId,startTime:s.startTime,status,recordId:r?.id??null,attendanceStatusId:r?.status_id??null});\n}\nconst semesters=[...group.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([label,c])=>({label,percentage:c.present+c.absent?Math.round(c.present/(c.present+c.absent)*10000)/100:null,source:'QWICKLY_API'}));\nconst auditMeta={courseLmsId:cfg.courseLmsId,qwicklyUserId:userId,totalSessions:sess.length,present,absent,excused,noRecord,generatedAt:new Date().toISOString(),joinKey:cfg.sisId};\nreturn [{json:{profile:src.profile,semesters,isSynthetic:false,source:'QWICKLY_API_ATTENDANCE',profileSource:'STUDENT_DATA_API',auditMeta,auditRecords}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        1680
+      ],
+      "id": "06decbd5-379f-40f2-bd7e-34ad3cd9efd6",
+      "name": "VISA · 10 / Reconcile + Build Compliance Evidence"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Native PDF renderer. Embed the university logo from the provided source package.\nconst utf8=s=>Buffer.from(String(s),'utf8');\nconst pct=x=>x===null||x===undefined?'N/A':Number(x).toFixed(2)+'%';\nconst JPG_B64='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BVTuzu/CokRFLQREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBVtD2p3le4KiVbQ9qd5XuCqndnd+FRIiKWgiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICraHtTvK9wVEq2h7U7yvcFVO7O78KiREUtBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQFW0PaneV7gqJVtD2p3le4Kqd2d34VEiIpaCIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgKtoe1O8r3BUSraHtTvK9wVU7s7vwqJERS0EREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAVbQ9qd5XuColW0PaneV7gqp3Z3fhUSIiloIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAq2h7U7yvcFRKtoe1O8r3BVTuzu/C/PSufvovSPwTpXP30XpH4IiYTzydK5++i9I/BOlc/fRekfgiJg55Olc/fRekfgnSufvovSPwREwc8nSufvovSPwTpXP30XpH4IiYOeTpXP30XpH4J0rn76L0j8ERMHPJ0rn76L0j8E6Vz99F6R+CImDnk6Vz99F6R+CdK5++i9I/BETBzydK5++i9I/BOlc/fRekfgiJg55Olc/fRekfgnSufvovSPwREwc8nSufvovSPwTpXP30XpH4IiYOeTpXP30XpH4J0rn76L0j8ERMHPJ0rn76L0j8E6Vz99F6R+CImDnk6Vz99F6R+CdK5++i9I/BETBzydK5++i9I/BOlc/fRekfgiJg55Olc/fRekfgnSufvovSPwREwc8nSufvovSPwTpXP30XpH4IiYOeTpXP30XpH4J0rn76L0j8ERMHPJ0rn76L0j8E6Vz99F6R+CImDnk6Vz99F6R+CraK2TiJ3XR9lznmHgRF2IZ3a55X//Z';\nconst JPG_W=300, JPG_H=598;\nfunction makeReportPdf(d,kind){\n  // Faithful A4 letter presentation. No unverified institutional signature or immigration conclusion.\n  const PW=595.28, PH=841.89, M=67, RIGHT=PW-67, CW=RIGHT-M;\n  const RED=[.77,.05,.16], INK=[.16,.18,.22], MUTE=[.35,.39,.44], WHITE=[1,1,1], PINK=[.97,.92,.93], GREY=[.95,.955,.965], BORDER=[.52,.53,.55];\n  const safe=s=>String(s===undefined||s===null?'N/A':s).normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'').replace(/[\\u2010-\\u2015]/g,'-').replace(/[\\u2018\\u2019]/g,\"'\").replace(/[\\u201c\\u201d]/g,'\"').replace(/[^\\x20-\\x7e]/g,'?');\n  const escpdf=s=>'('+safe(s).replace(/[\\\\()]/g,'\\\\$&')+')';\n  const co=x=>x.join(' ')+' rg', stroke=x=>x.join(' ')+' RG';\n  let pages=[],current=null,y=0;\n  function cmd(v){current.push(v);}\n  function rect(x,by,w,h,fill,border){if(fill)cmd(`${co(fill)} ${x.toFixed(2)} ${by.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re f`);if(border)cmd(`${stroke(border)} .55 w ${x.toFixed(2)} ${by.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re S`);}\n  function line(x1,y1,x2,y2,color=BORDER,width=.7){cmd(`${stroke(color)} ${width} w ${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S`);}\n  function text(str,x,by,size=9,bold=false,color=INK){cmd(`BT /${bold?'F2':'F1'} ${size} Tf ${co(color)} 1 0 0 1 ${x.toFixed(2)} ${by.toFixed(2)} Tm ${escpdf(str)} Tj ET`);}\n  function wr(s,width,sz=8.5){const words=safe(s).split(/\\s+/),out=[];let t='';for(const w of words){if(!w)continue;if((t+' '+w).trim().length*sz*.50>width&&t){out.push(t);t=w;}else t=(t?t+' ':'')+w;}if(t)out.push(t);return out.length?out:[''];}\n  function page(){current=[];pages.push(current);cmd(`q 29 0 0 58 ${RIGHT-40} 735 cm /Im1 Do Q`);line(M-35,575,M-35,64,RED,3); y=705;\n    if(pages.length>1){text('CONTINUED',M,PH-72,9,true,RED);y=PH-105;}}\n  function ensure(h){if(y-h<88){page();}}\n  function space(n){y-=n;}\n  function info(label,value){const chunks=wr(value,RIGHT-(M+175)-4,8.6),h=Math.max(17,chunks.length*13+4);ensure(h+1);text(label,M+19,y,8.8,true);text(':',M+145,y,8.8);let yy=y;for(const chunk of chunks){text(chunk,M+163,yy,8.7);yy-=13;}space(h);}\n  function paragraph(s,opts={}){const rows=wr(s,CW-6,opts.size||8.7),h=rows.length*(opts.line||14)+4;ensure(h+9);for(const l of rows){text(l,M,y,opts.size||8.7,!!opts.bold,opts.color||INK);space(opts.line||14);}space(6);}\n  function heading(s){ensure(35);text(s,M,y,10,true,INK);space(26);}\n  function header(ref,docTitle,fullName){const date=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'Asia/Kuching'}).format(new Date());\n    text('Ref:',M,720,8.6);text(ref,M+34,720,8.6);text('Date:',M,704,8.6);text(date,M+34,704,8.6);\n    text('TO WHOM IT MAY CONCERN',M,667,9.4,true);text('Dear Sir/Madam,',M,641,8.7);\n    text(`${docTitle} FOR ${safe(fullName).toUpperCase()}`,M,618,10,true);line(M,614,Math.min(RIGHT,M+Math.max(280,(`${docTitle} FOR ${safe(fullName)}`).length*5.1)),614,INK,.7);y=594;\n  }\n  function tab(headers,rows,widths,cellHeight=23){const total=widths.reduce((a,b)=>a+b,0);const x0=M+18;\n    const drawHeader=()=>{ensure(34);let x=x0;for(let j=0;j<headers.length;j++){rect(x,y-25,widths[j],26,PINK,BORDER);const l=wr(headers[j],widths[j]-12,8);text(l[0],x+(widths[j]-l[0].length*4.1)/2,y-15,8,true,RED);x+=widths[j];}space(26);};\n    drawHeader();if(!rows.length){paragraph('No attendance records were returned.');return;}\n    for(const row of rows){ensure(cellHeight+9);let x=x0;for(let j=0;j<widths.length;j++){rect(x,y-cellHeight,widths[j],cellHeight,null,BORDER);let val=safe(row[j]??'N/A');if(val.length*4.1>widths[j]-10)val=val.slice(0,Math.max(3,Math.floor((widths[j]-17)/4.1)))+'...';text(val,x+(widths[j]-val.length*4.05)/2,y-15,8);x+=widths[j];}space(cellHeight);}\n    space(19);\n  }\n  const p=d.profile||{};const sem=d.semesters||[];const visa=p.visa||{};const now=new Date();const refPrefix=kind==='academic'?'ATT':kind==='visa'?'VISA':'COMP';\n  page();header(`${refPrefix}/${safe(p.sisId)}/${now.getUTCFullYear()}`,kind==='academic'?'ATTENDANCE REPORT':kind==='visa'?'VISA INFORMATION REPORT':'VISA COMPLIANCE REVIEW',p.fullName||'STUDENT');\n  if(kind==='academic'){\n    paragraph('With reference to the subject above, please find the attendance summary for the student stated below.');\n    space(6);\n    [['Student ID',p.sisId],['Name',p.fullName],['Programme',p.programme?.name],['Faculty',p.faculty],['Email',p.email],['Campus',p.campus],['Year of Study',p.yearOfStudy],['Academic Status',p.academicStatus],['Student Category',p.studentType],['Current Semester',p.semester],['Attendance Period',sem.map(x=>x.label).join(' / ')]].forEach(([a,b])=>info(a,b));\n    space(12);\n    const intakes=['March 2025','September 2025','March 2026'];\n    const classify=n=>n===null||n===undefined?'N/A':n>=80?'Good':n>=40?'Fair':n>0?'Poor':'Nil';\n    tab(['Intake','Overall Attendance','Percentages (%)'],sem.map((s,i)=>[intakes[i]||s.label,classify(s.percentage),pct(s.percentage)]),[167,145,132],23);\n    tab(['Key','Percentages (%)'],[['Good','80 - 100'],['Fair','40 - 79.99'],['Poor','Above 0 - below 40'],['Nil','0']],[116,191],18);\n    paragraph('If there are any further queries, please contact the SE / Registrar Office.');space(9);\n    text('Yours sincerely,',M,y,9);space(29);text('Smart Attendance Administration',M,y,9,true);\n  }else if(kind==='visa'){\n    paragraph('With reference to the subject above, the available student visa details are summarised below for administrative verification.');\n    space(7);\n    [['Student ID',p.sisId],['Name',p.fullName],['Programme',p.programme?.name],['Email',p.email],['Campus',p.campus],['Student Category',p.studentType],['Academic Status',p.academicStatus]].forEach(([a,b])=>info(a,b));\n    space(14);heading('VISA INFORMATION');\n    [['Visa Required',visa.applicable?'Yes':'No'],['Visa Status',visa.status||'Not provided'],['Visa Expiry Date',visa.expiryDate||'Not provided'],['Administrative Review',visa.reviewRequired?'Required':'No review flag recorded']].forEach(([a,b])=>info(a,b));\n    space(14);heading('ATTENDANCE EVIDENCE');\n    tab(['Intake','Attendance','Percentages (%)'],sem.map((s,i)=>[['March 2025','September 2025','March 2026'][i]||s.label, s.percentage===null?'N/A':s.percentage>=80?'Good':s.percentage>=40?'Fair':s.percentage>0?'Poor':'Nil',pct(s.percentage)]),[167,145,132],23);\n    paragraph('This report provides recorded information for SE / Registrar Office review. Visa compliance decisions must be confirmed using the authorised policy and source records.');\n    space(12);text('Yours sincerely,',M,y,9);space(29);text('Smart Attendance Administration',M,y,9,true);\n  }else{\n    paragraph('The following information combines the available student visa profile and attendance evidence for administrative compliance review.');space(8);\n    [['Student ID',p.sisId],['Name',p.fullName],['Programme',p.programme?.name],['Student Category',p.studentType],['Email',p.email],['Visa Status',visa.status||'Not provided'],['Visa Expiry Date',visa.expiryDate||'Not provided'],['Review Flag',visa.reviewRequired?'Required':'Not flagged']].forEach(([a,b])=>info(a,b));\n    space(14);heading('ATTENDANCE LOG SUMMARY');\n    tab(['Attendance Period','Overall Attendance','Percentages (%)'],sem.map(s=>[s.label,s.percentage===null?'N/A':s.percentage>=80?'Good':s.percentage>=40?'Fair':s.percentage>0?'Poor':'Nil',pct(s.percentage)]),[167,145,132],23);\n    heading('COMPLIANCE ASSESSMENT');\n    info('Review Outcome','Pending institutional verification');info('Attendance Source',d.source||'Not provided');info('Student Data Source',d.profileSource||'Not provided');\n    paragraph('Attendance and visa records are presented as evidence only. No legal or university compliance determination is asserted by this generated report.');space(12);\n    if(Array.isArray(d.auditRecords)){\n      heading('SOURCE RECONCILIATION');\n      info('Qwickly Course LMS ID',d.auditMeta?.courseLmsId);\n      info('Qwickly User ID',d.auditMeta?.qwicklyUserId);\n      info('Qwickly Session Count',d.auditMeta?.totalSessions);\n      info('Present / Absent / Excused',`${d.auditMeta?.present ?? 0} / ${d.auditMeta?.absent ?? 0} / ${d.auditMeta?.excused ?? 0}`);\n      info('Records Not Located',d.auditMeta?.noRecord);\n      info('Join / Source',`SIS ID ${p.sisId} / Student Data API + Qwickly`);\n      space(12);\n      heading('APPENDIX: QWICKLY SESSION AUDIT LOG');\n      tab(['Session ID','Session Date','Attendance Status','Record ID'],d.auditRecords.map(r=>[r.sessionId,r.startTime ? String(r.startTime).slice(0,16) : 'N/A',r.status,r.recordId||'-']),[93,134,122,95],21);\n      space(10);\n    }\n    text('Yours sincerely,',M,y,9);space(26);text('Smart Attendance Administration',M,y,9,true);\n  }\n  const isDemo=!!(d.isSynthetic||p.isSynthetic||String(d.source||'').includes('DEMO'));\n  const pageCount=pages.length;pages.forEach((commands,i)=>{current=commands;line(M,63,RIGHT,63,BORDER,.55);text(isDemo?'PRESENTATION SAMPLE | SYNTHETIC DATA - NOT SOURCE-VERIFIED':'SYSTEM-GENERATED | REQUIRES AUTHORISED REVIEW',M,48,7,false,MUTE);text(`Page ${i+1} of ${pageCount}`,RIGHT-46,48,7,false,MUTE);});\n  // Assemble native PDF, keeping the university logo image embedded from the supplied ZIP.\n  const jpeg=Buffer.from(JPG_B64,'base64'),obj=[];const put=(id,body)=>{obj[id]=body;};\n  put(1,'<< /Type /Catalog /Pages 2 0 R >>');put(2,`<< /Type /Pages /Kids [${pages.map((_,i)=>`${6+i*2} 0 R`).join(' ')}] /Count ${pages.length} >>`);\n  put(3,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');put(4,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');\n  put(5,Buffer.concat([utf8(`<< /Type /XObject /Subtype /Image /Width ${JPG_W} /Height ${JPG_H} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\\nstream\\n`),jpeg,utf8('\\nendstream')]));\n  pages.forEach((cmds,i)=>{const pageId=6+i*2,contentId=pageId+1,b=utf8(cmds.join('\\n')+'\\n');put(pageId,`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> /XObject << /Im1 5 0 R >> >> /Contents ${contentId} 0 R >>`);put(contentId,Buffer.concat([utf8(`<< /Length ${b.length} >>\\nstream\\n`),b,utf8('endstream')]));});\n  const parts=[utf8('%PDF-1.4\\n%N8nFYP\\n')],offsets=[0];let off=parts[0].length;\n  for(let id=1;id<obj.length;id++){const body=Buffer.isBuffer(obj[id])?obj[id]:utf8(obj[id]);const seg=Buffer.concat([utf8(`${id} 0 obj\\n`),body,utf8('\\nendobj\\n')]);offsets.push(off);parts.push(seg);off+=seg.length;}\n  let refs=`xref\\n0 ${offsets.length}\\n0000000000 65535 f \\n`;for(let i=1;i<offsets.length;i++)refs+=String(offsets[i]).padStart(10,'0')+' 00000 n \\n';refs+=`trailer\\n<< /Size ${offsets.length} /Root 1 0 R >>\\nstartxref\\n${off}\\n%%EOF\\n`;parts.push(utf8(refs));return Buffer.concat(parts);\n}\n\nconst d=$input.first().json;\nconst buffer=makeReportPdf(d,'compliance');\nconst filename=`Visa_Compliance_${d.profile.sisId}.pdf`;\nreturn [{json:{mimeType:'application/pdf',filename},binary:{file:{data:buffer.toString('base64'),mimeType:'application/pdf',fileName:filename,fileExtension:'pdf'}}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1536,
+        1680
+      ],
+      "id": "7cfa963d-bb85-43c0-b1be-c17ca083fe90",
+      "name": "VISA · 11 / Formal PDF + Embedded Logo"
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "responseDataSource": "set",
+        "inputFieldName": "file",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "={{ $json.mimeType }}"
+              },
+              {
+                "name": "Content-Disposition",
+                "value": "={{ \"attachment; filename=\\\"\" + $json.filename + \"\\\"\" }}"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "X-Content-Type-Options",
+                "value": "nosniff"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1936,
+        1680
+      ],
+      "id": "9e007b4e-ab66-401c-a47b-97abce0554bc",
+      "name": "VISA · Return downloadable PDF"
+    },
+    {
+      "parameters": {
+        "content": "## VISA COMPLIANCE / LIVE DATA ONLY\n1. In node 02, set the real Student Data API URL.\n2. Connect HTTP Header Auth credentials to Student Data API.\n3. Connect one Qwickly OAuth2 (Client Credentials, **Body** authentication) credential to all Qwickly HTTP nodes. Token URL: https://au.qwickly.tools/api/auth/token/ .\n4. Connect a Header Auth credential to Webhook 01.\n5. Test with GET ?sis_id=104404156&course_lms_id=2244.\n6. No emulator fallback: missing/unmatched source records stop execution. A PDF is an administrative evidence packet, not an immigration decision.\n7. PDF includes source reconciliation and detailed session appendix.",
+        "height": 390,
+        "width": 625
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1200,
+        1232
+      ],
+      "id": "efdb14be-41b7-4c60-a9aa-ca965477a134",
+      "name": "VISA · SETUP / NEVER STORE API SECRETS IN JSON"
+    },
+    {
+      "parameters": {
+        "path": "fyp/admin/class-attendance-excel",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1184,
+        2832
+      ],
+      "id": "e5a31135-d297-4aeb-9ca3-74e2d4d52647",
+      "name": "CLASS XLSX · 01 / CLASS EXCEL EXPORT / GET",
+      "webhookId": "da483c87-7bae-41a2-b744-953c47662f18",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "JC6tpEkXlGN1Ah4W",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const q=$input.first().json.query||{};\nconst courseLmsId=String(q.course_lms_id??q.courseLmsId??'').trim();\nif(!/^\\d+$/.test(courseLmsId))throw new Error('Provide numeric course_lms_id in the URL query.');\nreturn [{json:{courseLmsId}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -912,
+        2832
+      ],
+      "id": "17616988-fe8a-495d-aa0b-b43e689fef75",
+      "name": "CLASS XLSX · 02 / Validate Course"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://au.qwickly.tools/api/dashboard/v1/course/lms_id%3A' + $('CLASS XLSX · 02 / Validate Course').first().json.courseLmsId + '/' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "include[]",
+              "value": "course_enrollments"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -624,
+        2832
+      ],
+      "id": "eb33e067-5fcd-4703-8db4-17a6c1647f11",
+      "name": "CLASS XLSX · 03 / Qwickly Course + Enrolments",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "mg8w7UaYlWRuMlxc",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://au.qwickly.tools/api/dashboard/v1/course/lms_id%3A' + $('CLASS XLSX · 02 / Validate Course').first().json.courseLmsId + '/status/' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "paginationMode": "responseContainsNextURL",
+              "nextURL": "={{ $response.body.next }}",
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ !$response.body.next }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -352,
+        2832
+      ],
+      "id": "249d63d9-e019-4226-b01b-dcacc3d1db4b",
+      "name": "CLASS XLSX · 04 / Qwickly Attendance Statuses",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "mg8w7UaYlWRuMlxc",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://au.qwickly.tools/api/dashboard/v1/course/lms_id%3A' + $('CLASS XLSX · 02 / Validate Course').first().json.courseLmsId + '/session/' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "paginationMode": "responseContainsNextURL",
+              "nextURL": "={{ $response.body.next }}",
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ !$response.body.next }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -64,
+        2832
+      ],
+      "id": "04dc1502-09cd-4867-a94d-18043295490e",
+      "name": "CLASS XLSX · 05 / Qwickly Sessions - all pages",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "mg8w7UaYlWRuMlxc",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw=$input.all().flatMap(it=>Array.isArray(it.json?.results)?it.json.results:Array.isArray(it.json)?it.json:[]);\nif(!raw.length)throw new Error('Qwickly returned no course sessions. No report generated.');\nconst found=new Set();const out=[];\nfor(const s of raw){if(s.id===undefined||s.id===null)continue;const id=String(s.id);if(found.has(id))continue;found.add(id);out.push({json:{sessionId:id,title:s.title??'',startTime:s.start_time??null,method:s.method??null}});}\nif(!out.length)throw new Error('Qwickly session results lack session IDs.');return out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        2832
+      ],
+      "id": "548795b3-4da4-48b1-a8e9-176411de3e25",
+      "name": "CLASS XLSX · 06 / Flatten Sessions"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://au.qwickly.tools/api/dashboard/v1/course/lms_id%3A' + $('CLASS XLSX · 02 / Validate Course').first().json.courseLmsId + '/session/' + $json.sessionId + '/record/' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "paginationMode": "responseContainsNextURL",
+              "nextURL": "={{ $response.body.next }}",
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ !$response.body.next }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        512,
+        2832
+      ],
+      "id": "427e2adb-104f-48cc-9347-c9838a745a9e",
+      "name": "CLASS XLSX · 07 / Qwickly Records - all pages",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "mg8w7UaYlWRuMlxc",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg=$('CLASS XLSX · 02 / Validate Course').first().json;\nconst detail=$('CLASS XLSX · 03 / Qwickly Course + Enrolments').first().json;\nconst course=detail.course??detail;\nif(course.lms_id!==undefined&&String(course.lms_id)!==String(cfg.courseLmsId))throw new Error('Course LMS ID mismatch.');\nconst sessions=$('CLASS XLSX · 06 / Flatten Sessions').all().map(i=>i.json);\nconst statusPages=$('CLASS XLSX · 04 / Qwickly Attendance Statuses').all();\nconst statuses=statusPages.flatMap(i=>Array.isArray(i.json?.results)?i.json.results:Array.isArray(i.json)?i.json:[]);\nconst nameByStatus=new Map(statuses.map(s=>[String(s.id),String(s.name??'Unknown')]));\nconst enrolled=Array.isArray(course.course_enrollments)?course.course_enrollments:[];\nconst studentById=new Map(enrolled.map(u=>[String(u.id??u.user_id),u]));\nconst pageItems=$input.all(),rows=[],seen=new Set();\nfor(let i=0;i<pageItems.length;i++){\n const itm=pageItems[i],p=itm.pairedItem,idx=Array.isArray(p)?p[0]?.item:p?.item;\n if(!Number.isInteger(idx)||!sessions[idx])throw new Error('Cannot reconcile record result with its source session: n8n item pairing absent.');\n const sess=sessions[idx]; const recs=Array.isArray(itm.json?.results)?itm.json.results:Array.isArray(itm.json)?itm.json:[];\n for(const r of recs){const recordId=String(r.id??'');const dedup=`${sess.sessionId}|${recordId}`;if(recordId&&seen.has(dedup))continue;seen.add(dedup);\n const userId=String(r.user_id??r.user?.id??'');const u=studentById.get(userId)||{};\n const status=nameByStatus.get(String(r.status_id??''))||r.status?.name||'Unknown';\n rows.push([cfg.courseLmsId,course.code??'',course.name??'',sess.sessionId,sess.title??'',sess.startTime??'',sess.method??'',recordId,userId,u.sis_id??'',`${u.first_name??''} ${u.last_name??''}`.trim(),u.email??'',status,r.status_id??'',r.time_created??'',r.mobile_data?.method??'',JSON.stringify(r).slice(0,7000)]);\n }\n}\nconst statusCounts=new Map();for(const row of rows)statusCounts.set(row[12],(statusCounts.get(row[12])||0)+1);\nconst sheets=[\n{name:'Summary',headers:['Metric','Value'],rows:[['Course LMS ID',cfg.courseLmsId],['Course Code',course.code??''],['Course Name',course.name??''],['Session Count',sessions.length],['Attendance Records',rows.length],['Enrolled Students',enrolled.length],['Retrieved At',new Date().toISOString()],['Source','QWICKLY_API'],['Notes','All retrieved records; pagination supported. No synthetic attendance values.']]},\n{name:'Full Attendance Logs',headers:['Course LMS ID','Course Code','Course Name','Session ID','Session Title','Session Start','Method','Record ID','Qwickly User ID','SIS ID','Student Name','Student Email','Attendance Status','Status ID','Record Timestamp','Check-in Method','Raw Qwickly Record JSON'],rows},\n{name:'Session Index',headers:['Session ID','Title','Start Time','Method'],rows:sessions.map(s=>[s.sessionId,s.title,s.startTime,s.method])},\n{name:'Course Enrolments',headers:['Qwickly User ID','SIS ID','Student Name','Email'],rows:enrolled.map(u=>[u.id??u.user_id??'',u.sis_id??'',`${u.first_name??''} ${u.last_name??''}`.trim(),u.email??''])},\n{name:'Status Dictionary',headers:['Status ID','Status','Attendance Points','Absence Flag'],rows:statuses.map(s=>[s.id,s.name,s.points??'',s.absence??''])},\n{name:'Status Counts',headers:['Status','Records'],rows:[...statusCounts.entries()]},\n{name:'Audit Metadata',headers:['Field','Value'],rows:[['Course LMS ID',cfg.courseLmsId],['API Base','https://au.qwickly.tools/api/dashboard/v1/'],['Scope','All sessions and record pages returned by Qwickly'],['Exported By','n8n Class Attendance Excel Workflow'],['Export Time (UTC)',new Date().toISOString()],['Raw Record JSON','Column Q in Full Attendance Logs'],['Status Interpretation','Status names taken from Qwickly course statuses; not inferred'],['Data Classification','Confidential student education records - restricted access']]}];\nreturn [{json:{sheets,courseLmsId:cfg.courseLmsId,recordCount:rows.length}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        2832
+      ],
+      "id": "a27cd193-5370-4a88-be63-1d01fb33bfe5",
+      "name": "CLASS XLSX · 08 / Audit-safe Excel Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dependency-free Open XML workbook renderer (ZIP + six+ styled sheets).\nconst safeExcel=x=>{let s=String(x??'');return /^[\\s\\x00-\\x1f]*[=+\\-@]/.test(s)?\"'\"+s:s;};\nconst utf8=s=>Buffer.from(String(s),'utf8');\nfunction crc32(b){let c=0xffffffff;for(let i=0;i<b.length;i++){c^=b[i];for(let j=0;j<8;j++)c=(c&1)?(c>>>1)^0xedb88320:c>>>1;}return (c^0xffffffff)>>>0;}\nfunction makeZip(entries){\n const chunks=[],central=[];let offset=0;\n for(const entry of entries){\n  const fn=utf8(entry.name),value=Buffer.isBuffer(entry.data)?entry.data:utf8(entry.data),crc=crc32(value);\n  const header=Buffer.alloc(30);header.writeUInt32LE(0x04034b50,0);header.writeUInt16LE(20,4);header.writeUInt16LE(0x0800,6);header.writeUInt16LE(0,8);header.writeUInt32LE(crc,14);header.writeUInt32LE(value.length,18);header.writeUInt32LE(value.length,22);header.writeUInt16LE(fn.length,26);\n  chunks.push(header,fn,value);\n  const ch=Buffer.alloc(46);ch.writeUInt32LE(0x02014b50,0);ch.writeUInt16LE(20,4);ch.writeUInt16LE(20,6);ch.writeUInt16LE(0x0800,8);ch.writeUInt32LE(crc,16);ch.writeUInt32LE(value.length,20);ch.writeUInt32LE(value.length,24);ch.writeUInt16LE(fn.length,28);ch.writeUInt32LE(offset,42);central.push(ch,fn);\n  offset+=header.length+fn.length+value.length;\n }\n const center=Buffer.concat(central),end=Buffer.alloc(22);end.writeUInt32LE(0x06054b50,0);end.writeUInt16LE(entries.length,8);end.writeUInt16LE(entries.length,10);end.writeUInt32LE(center.length,12);end.writeUInt32LE(offset,16);\n return Buffer.concat([...chunks,center,end]);\n}\nfunction xml(s){return String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&apos;'}[c])).replace(/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]/g,'');}\nfunction makeXlsx(sheets){\n const entries=[\n {name:'[Content_Types].xml',data:'<?xml version=\"1.0\" encoding=\"UTF-8\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/>'+sheets.map((_,i)=>`<Override PartName=\"/xl/worksheets/sheet${i+1}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>`).join('')+'<Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/><Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/></Types>'},\n {name:'_rels/.rels',data:'<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>'},\n {name:'xl/workbook.xml',data:'<?xml version=\"1.0\" encoding=\"UTF-8\"?><workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheets>'+sheets.map((s,i)=>`<sheet name=\"${xml(s.name)}\" sheetId=\"${i+1}\" r:id=\"rId${i+1}\"/>`).join('')+'</sheets></workbook>'},\n {name:'xl/_rels/workbook.xml.rels',data:'<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">'+sheets.map((_,i)=>`<Relationship Id=\"rId${i+1}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet${i+1}.xml\"/>`).join('')+`<Relationship Id=\"rId${sheets.length+1}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/></Relationships>`},\n {name:'xl/styles.xml',data:'<?xml version=\"1.0\" encoding=\"UTF-8\"?><styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><fonts count=\"2\"><font><sz val=\"11\"/><name val=\"Aptos\"/></font><font><b/><sz val=\"11\"/><color rgb=\"FFFFFFFF\"/><name val=\"Aptos\"/></font></fonts><fills count=\"3\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/></fill><fill><patternFill patternType=\"solid\"><fgColor rgb=\"FFC8102E\"/><bgColor indexed=\"64\"/></patternFill></fill></fills><borders count=\"1\"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs><cellXfs count=\"2\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/><xf numFmtId=\"0\" fontId=\"1\" fillId=\"2\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\"/></cellXfs><cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles></styleSheet>'}\n ];\n for(let si=0;si<sheets.length;si++){\n  const sh=sheets[si],all=[sh.headers,...sh.rows];\n  let t='<?xml version=\"1.0\" encoding=\"UTF-8\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><dimension ref=\"A1:'+(function(n){let s='';while(n){s=String.fromCharCode(65+(n-1)%26)+s;n=Math.floor((n-1)/26);}return s;})(sh.headers.length)+String(all.length)+'\"/><sheetViews><sheetView workbookViewId=\"0\"/></sheetViews><sheetFormatPr defaultRowHeight=\"17\"/><cols>'+sh.headers.map((_,i)=>`<col min=\"${i+1}\" max=\"${i+1}\" width=\"${i<2?24:21}\" customWidth=\"1\"/>`).join('')+'</cols><sheetData>';\n  for(let ri=0;ri<all.length;ri++){\n   t+=`<row r=\"${ri+1}\">`;\n   for(let ci=0;ci<all[ri].length;ci++){\n    const col=(function(n){let s='';while(n){s=String.fromCharCode(65+(n-1)%26)+s;n=Math.floor((n-1)/26);}return s;})(ci+1);\n    const v=all[ri][ci],header=ri===0?' s=\"1\"':'';\n    if(ri>0&&typeof v==='number'&&Number.isFinite(v))t+=`<c r=\"${col}${ri+1}\"${header}><v>${v}</v></c>`;\n    else t+=`<c r=\"${col}${ri+1}\" t=\"inlineStr\"${header}><is><t xml:space=\"preserve\">${xml(safeExcel(v))}</t></is></c>`;\n   }\n   t+='</row>';\n  }\n  t+='</sheetData><autoFilter ref=\"A1:'+ (function(n){let s='';while(n){s=String.fromCharCode(65+(n-1)%26)+s;n=Math.floor((n-1)/26);}return s;})(sh.headers.length)+'1\"/></worksheet>';\n  entries.push({name:`xl/worksheets/sheet${si+1}.xml`,data:t});\n }\n return makeZip(entries);\n}\n\n\nconst d=$input.first().json;const buffer=makeXlsx(d.sheets);const filename=`Qwickly_Class_Attendance_${d.courseLmsId}.xlsx`;\nreturn [{json:{mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',filename},binary:{file:{data:buffer.toString('base64'),mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName:filename,fileExtension:'xlsx'}}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1152,
+        2832
+      ],
+      "id": "9c1f6ace-242e-4b21-8433-83e9cb15f29c",
+      "name": "CLASS XLSX · 09 / Render Multi-sheet XLSX"
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "responseDataSource": "set",
+        "inputFieldName": "file",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "={{ $json.mimeType }}"
+              },
+              {
+                "name": "Content-Disposition",
+                "value": "={{ \"attachment; filename=\\\"\" + $json.filename + \"\\\"\" }}"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "X-Content-Type-Options",
+                "value": "nosniff"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1440,
+        2832
+      ],
+      "id": "bc5c05cd-4b19-427d-ad61-14cfc341bf34",
+      "name": "CLASS XLSX · Return downloadable Excel"
+    },
+    {
+      "parameters": {
+        "content": "## FULL CLASS ATTENDANCE XLSX\n1. Configure the same Qwickly OAuth2 **Client Credentials** credential on every HTTP Request node.\n2. Configure a Header Auth credential on Webhook 01.\n3. Test with ?course_lms_id=2244; adjust to an authorised course.\n4. Includes Summary, Full Attendance Logs, Session Index, Course Enrolments, Status Dictionary, Status Counts, Audit Metadata.\n5. Every session and record page is requested; student names are resolved from course enrolments.\n6. Export contains potentially sensitive educational records; restrict access and retention.\n7. On pagination or item-pairing failure, execution stops rather than silently misattributing records.",
+        "height": 350,
+        "width": 570
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1200,
+        2384
+      ],
+      "id": "0f4f351c-627b-4b85-bea2-ef5fdb016009",
+      "name": "CLASS XLSX · SECURE EXCEL / LIVE QWICKLY ONLY"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "01 · Admin Portal · GET": {
+      "main": [
+        [
+          {
+            "node": "02 · Route + Synthetic Data + Exports",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 · Route + Synthetic Data + Exports": {
+      "main": [
+        [
+          {
+            "node": "03 · HTML response?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 · HTML response?": {
+      "main": [
+        [
+          {
+            "node": "05 · Respond · Admin UI / Preview",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "04 · JSON response?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 · JSON response?": {
+      "main": [
+        [
+          {
+            "node": "06 · Respond · JSON API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "07 · Respond · PDF / XLSX / CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISA · 01 / VISA COMPLIANCE / GET": {
+      "main": [
+        [
+          {
+            "node": "VISA · 02 / Validate + Configure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISA · 02 / Validate + Configure": {
+      "main": [
+        [
+          {
+            "node": "VISA · 03 / Student Data API (visa + identity)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISA · 03 / Student Data API (visa + identity)": {
+      "main": [
+        [
+          {
+            "node": "VISA · 04 / Qwickly Users - all pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISA · 04 / Qwickly Users - all pages": {
+      "main": [
+        [
+          {
+            "node": "VISA · 05 / Match SIS ID across APIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISA · 05 / Match SIS ID across APIs": {
+      "main": [
+        [
+          {
+            "node": "VISA · 06 / Qwickly Attendance Statuses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISA · 06 / Qwickly Attendance Statuses": {
+      "main": [
+        [
+          {
+            "node": "VISA · 07 / Qwickly Sessions - all pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISA · 07 / Qwickly Sessions - all pages": {
+      "main": [
+        [
+          {
+            "node": "VISA · 08 / Flatten Qwickly Sessions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISA · 08 / Flatten Qwickly Sessions": {
+      "main": [
+        [
+          {
+            "node": "VISA · 09 / Qwickly Session Records - all pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISA · 09 / Qwickly Session Records - all pages": {
+      "main": [
+        [
+          {
+            "node": "VISA · 10 / Reconcile + Build Compliance Evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISA · 10 / Reconcile + Build Compliance Evidence": {
+      "main": [
+        [
+          {
+            "node": "VISA · 11 / Formal PDF + Embedded Logo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VISA · 11 / Formal PDF + Embedded Logo": {
+      "main": [
+        [
+          {
+            "node": "VISA · Return downloadable PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLASS XLSX · 01 / CLASS EXCEL EXPORT / GET": {
+      "main": [
+        [
+          {
+            "node": "CLASS XLSX · 02 / Validate Course",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLASS XLSX · 02 / Validate Course": {
+      "main": [
+        [
+          {
+            "node": "CLASS XLSX · 03 / Qwickly Course + Enrolments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLASS XLSX · 03 / Qwickly Course + Enrolments": {
+      "main": [
+        [
+          {
+            "node": "CLASS XLSX · 04 / Qwickly Attendance Statuses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLASS XLSX · 04 / Qwickly Attendance Statuses": {
+      "main": [
+        [
+          {
+            "node": "CLASS XLSX · 05 / Qwickly Sessions - all pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLASS XLSX · 05 / Qwickly Sessions - all pages": {
+      "main": [
+        [
+          {
+            "node": "CLASS XLSX · 06 / Flatten Sessions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLASS XLSX · 06 / Flatten Sessions": {
+      "main": [
+        [
+          {
+            "node": "CLASS XLSX · 07 / Qwickly Records - all pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLASS XLSX · 07 / Qwickly Records - all pages": {
+      "main": [
+        [
+          {
+            "node": "CLASS XLSX · 08 / Audit-safe Excel Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLASS XLSX · 08 / Audit-safe Excel Data": {
+      "main": [
+        [
+          {
+            "node": "CLASS XLSX · 09 / Render Multi-sheet XLSX",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLASS XLSX · 09 / Render Multi-sheet XLSX": {
+      "main": [
+        [
+          {
+            "node": "CLASS XLSX · Return downloadable Excel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "3e93b744-f4b1-4ecd-9f6b-5890faeba5d3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "aeffc4f217bbb902eb3b90dd47a9269e7c540bc504a3456abd7af7a4a4676388"
+  },
+  "id": "5dLjzpkZr7aVyNOP",
+  "tags": []
+}
